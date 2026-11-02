@@ -1,0 +1,9 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "半拍 Piano Studio",
+  "version": "0.1.0",
+  "identifier": "studio.banpai.piano",
+  "build": { "beforeDevCommand": "npm run dev", "beforeBuildCommand": "npm run build", "devUrl": "http://localhost:1420", "frontendDist": "../dist" },
+  "app": { "windows": [{ "title": "半拍 · Piano Studio", "width": 1440, "height": 960, "minWidth": 960, "minHeight": 720 }], "security": { "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost 'self'; img-src 'self' asset: data: blob:; media-src 'self' blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'" } },
+  "bundle": { "active": false, "icon": [] }
+}

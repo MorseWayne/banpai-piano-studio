@@ -1,0 +1,11 @@
+Salamander Grand Piano, recorded by Alexander Holm.
+Original instrument: Yamaha C5 grand piano.
+Source MP3 distribution: https://tonejs.github.io/audio/salamander/
+Original creator: https://rytmenpinne.wordpress.com/sounds-and-such/salamander-grandpiano/
+The creator states: "As of 4.3.2022, this is now public domain!"
+Historically distributed under Creative Commons Attribution 3.0:
+https://creativecommons.org/licenses/by/3.0/
+
+This app bundles nine unmodified MP3 samples from that distribution.
+Playback transposes the closest sample to the requested pitch and applies
+velocity gain and a release envelope. No endorsement is implied.

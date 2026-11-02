@@ -1,0 +1,20 @@
+[package]
+name = "banpai"
+version = "0.1.0"
+description = "A personal, progressive piano practice studio"
+edition = "2021"
+rust-version = "1.90"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+midir = "0.11"
+
+[profile.release]
+strip = true
+opt-level = "s"
+lto = true
+codegen-units = 1
