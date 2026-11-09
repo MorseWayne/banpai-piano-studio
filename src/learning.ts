@@ -1,4 +1,5 @@
 import type { Lesson } from './model';
+import { phases } from './coursePlan';
 
 export interface ReadingSection { id: string; title: string; body: string; action: string }
 export interface Reading { goal: string; sections: ReadingSection[]; checks: string[]; reference: { title: string; url: string } }
@@ -9,7 +10,7 @@ const posture: Reading = {
   sections: [
     { id: 'seat', title: '先调整座椅', body: '坐在琴凳前半部，双脚平稳支撑身体。调节高度，让肘部接近琴键高度，再调整与键盘的距离，给手臂留出活动空间。', action: '把双手放到键盘上，检查脚部是否有支撑，手肘是否能自然活动。' },
     { id: 'arm', title: '让肩臂和手腕自然连接', body: '肩膀放松，手臂自然垂落后再放到键盘上。手掌保持自然弧度，观察前臂、手腕与手掌的连接，随着落键保持舒适的活动余地。', action: '从侧面观察自己的手腕，再与原始姿势示范中的坐姿和手位对照。' },
-    { id: 'touch', title: '感受落键、保持和松开', body: '找到中央 C，用右手中指缓慢按下。听声音开始，保持片刻，再自然松开。每次动作后，感受肩膀、前臂和手腕的状态。', action: '连续尝试四次，每次之间留出重新放松和准备的时间。' },
+    { id: 'touch', title: '感受落键、保持和松开', body: '先找成对的两枚黑键，紧靠这对黑键左边的白键就是 C。对照下方标作 C4 的中央 C，用右手中指缓慢按下。听声音开始，保持片刻，再自然松开。', action: '先在不同音区找出三个 C，再回到 C4 连续尝试四次落键，每次之间放松肩臂。' },
   ],
   checks: ['我已调整座椅与距离，双脚有支撑', '我能在落键后放松肩臂并自然松开', '我知道本节用右手中指弹中央 C'],
   reference: { title: 'Yamaha 坐姿与触键示范', url: 'https://www.yamaha.com/en/musical_instrument_guide/piano/play/play002.html' },
@@ -31,6 +32,19 @@ const readingNotes: Record<string, { goal: string; body: string; action: string 
 
 export function readingFor(lesson: Lesson): Reading {
   if (lesson.id === 'posture') return posture;
+  const phase = phases.find(item => item.chapters.includes(lesson.stage));
+  if (lesson.assignment && phase) {
+    return {
+      goal: lesson.subtitle,
+      sections: [
+        { id: 'understand', title: lesson.theory.title, body: lesson.theory.body, action: lesson.theory.example },
+        { id: 'play', title: '上琴练习', body: lesson.tip, action: '在下方谱面点选目标小节，核对音高、手位与进入拍，再进练习室连起来弹。' },
+        { id: 'apply', title: '离谱应用', body: lesson.assignment.task, action: `完成后对照这条标准自评：“${lesson.assignment.check}”。` },
+      ],
+      checks: ['我已对照谱例读懂本课的乐理', '我已按练习提示试过关键小节', lesson.assignment.check],
+      reference: phase.reference,
+    };
+  }
   const notes = readingNotes[lesson.id];
   return {
     goal: notes?.goal ?? lesson.subtitle,
@@ -40,7 +54,7 @@ export function readingFor(lesson: Lesson): Reading {
       { id: 'practice', title: '进入练习前', body: '先听一遍示范，再用找音模式熟悉音高与手位。能够连续完成后，尝试慢速跟拍。双手练习可以先选一个声部，再逐步合手。', action: '练习中点“本课要点”可以随时回看，返回后从暂停位置继续。' },
     ],
     checks: ['我能说明本课的一个知识点', '我已对照示范确认起始手位和指法', '我已读过练习方法，知道先练哪一小段'],
-    reference: lesson.stage.startsWith('02') ? fingeringReference : {
+    reference: lesson.stage.startsWith('02') ? fingeringReference : phase?.reference ?? {
       title: 'ABRSM 初级练习与示范', url: 'https://www.abrsm.org/en-ai/for-learners/piano-learning/initialgrade',
     },
   };

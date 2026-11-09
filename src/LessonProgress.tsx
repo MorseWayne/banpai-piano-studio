@@ -41,7 +41,7 @@ export function LessonProgress({ lesson, progress, onNext, onCourses, onStudy, c
         <p>{next.stage !== lesson.stage && <span>{next.stage}</span>}{next.title}</p>
         <button className="soft-button" onClick={onNext} aria-label={`${nextLabel} · ${next.title}`}>{nextLabel}<ArrowRight size={15} /></button>
       </> : <>
-        <p>已到基础课程末尾</p>
+        <p>已到学习路径末尾</p>
         <button className="soft-button" onClick={onCourses}>查看学习路径<ArrowRight size={15} /></button>
       </>}
     </div>

@@ -1,6 +1,7 @@
 import { describe,it,expect } from 'vitest';
 import { Judge, decodeMidi, matchesHand, type Note } from './model';
 import { lessons } from './lessons';
+import { phases } from './coursePlan';
 const n=(id:string,midi:number,beat=0,duration=1):Note=>({id,midi,beat,duration,hand:midi<60?'left':'right'});
 describe('musical input and assessment',()=>{
   it('normalizes velocity-zero note-on and all MIDI channels',()=>{expect(decodeMidi([0x95,60,0])?.type).toBe('off');expect(decodeMidi([0x8f,60,64])?.type).toBe('off');expect(decodeMidi([0x91,60,80])?.type).toBe('on');expect(decodeMidi([0xf8])).toBeNull();expect(decodeMidi([0xb2,64,127])?.type).toBe('sustain');expect(decodeMidi([0xb2,123,0])?.type).toBe('panic');});
@@ -12,4 +13,33 @@ describe('musical input and assessment',()=>{
   it('counts missed notes at completion and flags an early release',()=>{const j=new Judge([n('a',48,0,4),n('b',60,2)],'rhythm');j.on(48,0);j.off(48,.5);j.finish(4);expect(j.notes.length-j.hits.size).toBe(1);expect(j.durationErrors).toBe(1);});
   it('does not evaluate duration in waiting mode',()=>{const j=new Judge([n('a',60)],'wait');j.on(60,0);j.off(60,20);expect(j.durationErrors).toBe(0);expect(j.early+j.late).toBe(0);});
   it('all authored lessons have legal durations, unique IDs, and complete bar bounds',()=>{for(const l of lessons){expect(new Set(l.notes.map(n=>n.id)).size).toBe(l.notes.length);for(const note of l.notes){expect(note.beat+note.duration).toBeLessThanOrEqual(l.beats);expect(note.midi).toBeGreaterThanOrEqual(21);expect(note.finger).toBeGreaterThanOrEqual(1);expect(note.finger).toBeLessThanOrEqual(5);}expect(l.notes.filter(n=>matchesHand(n,'both')).length).toBe(l.notes.length);}});
+});
+
+it('makes every built-in lesson reachable once in the same order as next-lesson navigation', () => {
+  const ordered = phases.flatMap(phase => phase.chapters.flatMap(stage => {
+    const chapter = lessons.filter(lesson => lesson.stage === stage);
+    expect(chapter.length, stage).toBeGreaterThan(0);
+    return chapter.map(lesson => lesson.id);
+  }));
+  expect(ordered).toEqual(lessons.map(lesson => lesson.id));
+  expect(new Set(ordered).size).toBe(ordered.length);
+});
+
+it('keeps each written chord playable and each hand inside its bar and voice', () => {
+  for (const lesson of lessons) {
+    for (const hand of ['left', 'right']) {
+      let end = 0;
+      const notes = lesson.notes.filter(note => note.hand === hand);
+      for (const beat of [...new Set(notes.map(note => note.beat))].sort((a, b) => a - b)) {
+        const group = notes.filter(note => note.beat === beat);
+        const duration = group[0].duration;
+        expect(beat, lesson.id).toBeGreaterThanOrEqual(end);
+        expect(duration, lesson.id).toBeGreaterThan(0);
+        expect(beat % lesson.meter + duration, lesson.id).toBeLessThanOrEqual(lesson.meter);
+        expect(group.every(note => note.duration === duration), lesson.id).toBe(true);
+        expect(new Set(group.map(note => note.finger)).size, lesson.id).toBe(group.length);
+        end = beat + duration;
+      }
+    }
+  }
 });

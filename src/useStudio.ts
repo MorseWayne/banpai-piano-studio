@@ -6,8 +6,10 @@ import { mergePracticeProgress } from './progress';
 import * as midi from './midi';
 export interface Settings { bpm:number; hands:Hands; mode:Mode; metronome:boolean; clickVolume:number; subdivisions:boolean; countIn:number; loop:boolean; accompaniment:boolean; startBar:number; endBar:number; offset:number; hints:boolean }
 interface Run { lesson:Lesson; settings:Settings; judge:Judge; notes:Note[]; all:Note[]; start:number; length:number; startBeat:number; resumeBeat:number; demo:boolean; scheduled:number; input:Set<string>; assisted:boolean }
-export function useStudio(lesson:Lesson) {
-  const [settings,setSettings]=useState<Settings>({bpm:lesson.bpm,hands:'both',mode:'wait',metronome:true,clickVolume:.6,subdivisions:false,countIn:1,loop:false,accompaniment:true,startBar:0,endBar:1,offset:0,hints:true});
+export function useStudio(lesson:Lesson, isImported: boolean) {
+  const lastBar = Math.ceil(lesson.beats / lesson.meter) - 1;
+  const initialEndBar = isImported ? Math.min(1, lastBar) : lastBar;
+  const [settings,setSettings]=useState<Settings>({bpm:lesson.bpm,hands:'both',mode:'wait',metronome:true,clickVolume:.6,subdivisions:false,countIn:1,loop:false,accompaniment:true,startBar:0,endBar:initialEndBar,offset:0,hints:true});
   const [status,setStatus]=useState<'idle'|'counting'|'running'|'demo'|'finished'|'paused'>('idle');
   const [ready,setReady]=useState(false),[loading,setLoading]=useState(false),[message,setMessage]=useState('先听一遍示范，再按自己的速度开始。');
   const [down,setDown]=useState(new Set<number>()),[active,setActive]=useState<string[]>([]),[hits,setHits]=useState(new Set<string>());
@@ -145,11 +147,11 @@ export function useStudio(lesson:Lesson) {
     stop(false);
     const parts = new Set(lesson.notes.map(note => note.hand));
     const hands = parts.size === 1 ? lesson.notes[0].hand : 'both';
-    setSettings(previous => ({ ...previous, bpm: lesson.bpm, hands, startBar: 0, endBar: Math.min(1, Math.ceil(lesson.beats / lesson.meter) - 1) }));
+    setSettings(previous => ({ ...previous, bpm: lesson.bpm, hands, startBar: 0, endBar: initialEndBar }));
     setPosition(0); setHits(new Set()); setResult(null);
     setMessage('先听一遍示范，再按自己的速度开始。');
     save('lastLesson', lesson.id);
-  }, [lesson.id]);
+  }, [lesson.id, initialEndBar]);
   useEffect(()=>{piano.setVolume(volume);},[volume]);
   useEffect(() => {
     setProgressError(save('practiceProgress', practiceProgress) ? '' : '章节练习进度保存失败，请释放本机存储空间后重试。');

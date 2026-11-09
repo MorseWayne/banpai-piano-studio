@@ -76,11 +76,19 @@ test('legacy rounds migrate to durable progress and a later self-check completes
 test('the last lesson returns to the route without claiming earlier lessons are complete', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await page.getByRole('button', { name: /学习讲解 · 把小练习/ }).click();
+  await page.getByRole('button', { name: '独立编配与演出' }).click();
+  await page.getByRole('button', { name: /学习讲解 · 从前奏到尾声/ }).click();
   const progress = page.getByRole('region', { name: '本课完成进度' });
-  await expect(progress).toContainText('已到基础课程末尾');
+  await expect(progress).toContainText('已到学习路径末尾');
   await expect(progress).toContainText('本课完成 0/2');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await progress.getByRole('button', { name: '查看学习路径' }).click();
+  await expect(page.getByRole('button', { name: '独立编配与演出' })).toHaveAttribute('aria-current', 'step');
   await expect(page.getByRole('progressbar', { name: '全部课程完成进度' })).toHaveAttribute('value', '0');
+  await page.getByRole('button', { name: /直接练习 · 从前奏到尾声/ }).click();
+  await page.getByRole('button', { name: '练习片段' }).click();
+  await expect(page.getByLabel('结束小节')).toHaveValue('11');
+  await page.getByLabel('起始小节').selectOption({ label: '12' });
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: /试听第 12 小节 · 第 1 拍 · 右手 C4/ })).toBeVisible();
 });

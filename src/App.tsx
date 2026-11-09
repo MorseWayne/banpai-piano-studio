@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowDownToLine, ArrowRight, BookOpen, History, KeyboardMusic, Library, Music2, Plus, Upload } from 'lucide-react';
 import { lessons, goals } from './lessons';
+import { phases } from './coursePlan';
 import { type Lesson } from './model';
 import { useStudio } from './useStudio';
 import { loadImports, loadLearning, read, save } from './storage';
@@ -27,7 +28,8 @@ export default function App() {
   const [imports, setImports] = useState<Lesson[]>(loadImports);
   const [lessonId, setLessonId] = useState(() => read('lastLesson', 'posture'));
   const lesson = [...lessons, ...imports].find(item => item.id === lessonId) ?? lessons[0];
-  const studio = useStudio(lesson);
+  const [phase, setPhase] = useState(() => phases.find(item => item.chapters.includes(lesson.stage)) ?? phases[0]);
+  const studio = useStudio(lesson, imports.includes(lesson));
   const practiced = new Set(Object.keys(studio.practiceProgress));
   const played = new Set(Object.entries(studio.practiceProgress).filter(([, level]) => level !== 'practiced').map(([id]) => id));
   const independent = new Set(Object.entries(studio.practiceProgress).filter(([, level]) => level === 'independent').map(([id]) => id));
@@ -59,6 +61,10 @@ export default function App() {
 
   function navigate(next: Page) {
     if (page === next) return;
+    if (next === 'courses' && (page === 'learn' || page === 'practice')) {
+      const currentPhase = phases.find(item => item.chapters.includes(lesson.stage));
+      if (currentPhase) setPhase(currentPhase);
+    }
     if (!(next === 'practice' && studio.status === 'paused')) studio.stop(false);
     setPage(next);
     window.scrollTo(0, 0);
@@ -132,12 +138,20 @@ export default function App() {
           onPreview={notes => { void studio.previewNotes(notes); }} video={video} onVideo={setVideoFile} paused={studio.status === 'paused'}
           progress={courseProgress} onNext={nextLesson} />}
         {page === 'courses' && <>
-          <div className="page-heading"><div><h1>学习路径</h1><p>从坐姿与用指开始，逐步进入读谱、拍感和双手配合。</p></div>
+          <div className="page-heading"><div><h1>学习路径</h1><p>从第一次落键，学到为喜欢的歌配和弦、编伴奏并完整演奏。</p></div>
             <div className="course-progress"><b>已完成 {completed.size} / {lessons.length} 课</b><progress aria-label="全部课程完成进度" value={completed.size} max={lessons.length} /></div>
           </div>
           <div className="course-overview"><span>完成章节 <b>{completedChapters} / {chapters.length}</b></span><span>已学习 <b>{learned.size}</b></span><span>已练习 <b>{lessons.filter(item => practiced.has(item.id)).length}</b></span><span>独立完成 <b>{independentCount}</b></span></div>
-          <p className="course-criteria">每课完成学习自检，并完整弹完本课全部音符，即计入章节进度。练习时可以开启提示。</p>
-          {chapters.map(chapter => {
+          <p className="course-criteria">完成学习自检并弹完本课全部音符，即计入章节进度。听辨、即兴与自选曲通过弹唱或录音自行验收。</p>
+          <nav className="phase-nav" aria-label="学习阶段">{phases.map(item =>
+            <button key={item.title} aria-current={phase === item ? 'step' : undefined} onClick={() => setPhase(item)}>{item.title}</button>)}</nav>
+          <section className="phase-guide" aria-label={phase.title + '阶段指南'}>
+            <h2>{phase.goal}</h2>
+            <dl><div><dt>怎样练</dt><dd>{phase.routine}</dd></div>
+              <div><dt>阶段验收</dt><dd>{phase.project}</dd></div></dl>
+            <p>课程参考 · {phase.rationale} <a href={phase.reference.url} target="_blank" rel="noreferrer">{phase.reference.title} ↗</a></p>
+          </section>
+          {chapters.filter(chapter => phase.chapters.includes(chapter.title)).map(chapter => {
             const done = chapter.lessons.filter(item => completed.has(item.id)).length;
             return <section className="course-section" key={chapter.title} aria-label={chapter.title}>
             <div className="chapter-heading"><h2>{chapter.title}</h2><span>{done === chapter.lessons.length ? '本章已完成' : '已完成'} {done}/{chapter.lessons.length} 课</span>
@@ -174,7 +188,7 @@ export default function App() {
           <p className="library-note">三首目标曲目需自行导入有权使用的乐谱。</p>
         </>}
         {page === 'history' && <>
-          <div className="page-heading"><div><h1>练习记录</h1><p>本机已记录 {studio.attempts.length} 轮练习，独立完成 {independentCount} 门基础练习。</p></div>
+          <div className="page-heading"><div><h1>练习记录</h1><p>本机已记录 {studio.attempts.length} 轮练习，独立完成 {independentCount} 门课程练习。</p></div>
             <button className="soft-button" onClick={exportHistory}><ArrowDownToLine size={16} />导出记录</button></div>
           {studio.attempts.length ? <div className="history-table"><table><thead><tr>
             {['练习', '模式 / 速度', '命中 / 总音数', '错音', '提前 / 滞后', '时值偏差', '输入', '时间'].map(label => <th key={label} scope="col">{label}</th>)}

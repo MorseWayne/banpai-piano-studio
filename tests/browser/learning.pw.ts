@@ -1,5 +1,17 @@
 import { expect, test } from '@playwright/test';
 
+test('the foundation phrase leads into interval reading and its playable score', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /学习讲解 · 把小练习/ }).click();
+  await page.getByRole('button', { name: /下一章 · 用距离读旋律/ }).click();
+  await page.getByRole('button', { name: '离谱应用' }).click();
+  await expect(page.getByRole('article', { name: '课程讲解' })).toContainText('从 G4 起');
+  await page.getByRole('button', { name: '开始本节练习' }).first().click();
+  await expect(page.getByRole('button', { name: /试听第 1 小节 · 第 1 拍/ }).first()).toBeVisible();
+  await page.getByRole('button', { name: '学习路径', exact: true }).click();
+  await expect(page.getByRole('button', { name: '读谱与键盘熟练度' })).toHaveAttribute('aria-current', 'step');
+});
+
 test('the first visit starts with posture and learning progress persists separately from practice', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: '学习路径', exact: true })).toBeVisible();

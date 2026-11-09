@@ -1,4 +1,5 @@
 import type { Lesson, Note, Hand } from './model';
+import { repertoire } from './repertoire';
 function line(pitches: number[], durations: number[], hand: Hand, fingers: number[]): Note[] {
   let beat = 0; return pitches.map((midi,i) => { const note = { id: `${hand}-${i}`, midi, beat, duration: durations[i], hand, finger: fingers[i] }; beat += durations[i]; return note; });
 }
@@ -53,10 +54,11 @@ const foundations: Lesson[] = [
     tip: '先分手，再循环第一小节。跟拍模式可以帮助检查左手的保持时长。', source: '原创双手过渡练习' },
 ];
 const order = ['posture', 'fingers-right', 'fingers-left', 'pulse', 'right', 'left', 'alternate', 'landing', 'together', 'hold-two', 'independence', 'phrase'];
-export const lessons: Lesson[] = order.map(id => {
+const introductoryLessons: Lesson[] = order.map(id => {
   const lesson = [...foundations, ...existingLessons].find(item => item.id === id)!;
   const stage = ['pulse', 'right', 'left'].includes(id) ? '03 · 读谱与拍感'
     : id === 'together' ? '04 · 双手合作' : lesson.stage;
   return { ...lesson, stage };
 });
+export const lessons: Lesson[] = [...introductoryLessons, ...repertoire];
 export const goals = [ { title:'枫',artist:'周杰伦',color:'maple',tag:'旋律与乐句'}, { title:'蒲公英的约定',artist:'周杰伦',color:'dandelion',tag:'双手与伴奏'}, { title:'唯一',artist:'G.E.M. 邓紫棋演唱版',color:'only',tag:'节奏与表达'} ];
