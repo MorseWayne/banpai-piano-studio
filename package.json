@@ -20,9 +20,9 @@
     "@radix-ui/react-radio-group": "^1.5.1",
     "@tauri-apps/api": "^2.8.0",
     "lucide-react": "^0.468.0",
+    "opensheetmusicdisplay": "^2.3.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "vexflow": "^5.0.0"
+    "react-dom": "^19.1.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.51.0",

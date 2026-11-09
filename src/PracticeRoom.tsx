@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, BookOpen, CheckCircle2, ChevronRight, KeyboardMusic, ListMusic, Music2, X } from 'lucide-react';
-import { Fingering, Score } from './components';
+import { Fingering } from './components';
+import { Score } from './Score';
 import { Keyboard } from './Keyboard';
-import { matchesHand, type Lesson } from './model';
+import { matchesHand, type Lesson, type Note } from './model';
 import { PracticeControls } from './PracticeControls';
 import type { useStudio } from './useStudio';
 
@@ -16,6 +17,7 @@ export function PracticeRoom({ lesson, studio: s, onCourses, onHistory, video, o
 }) {
   const [guide, setGuide] = useState(false);
   const [browseBar, setBrowseBar] = useState<number | null>(null);
+  const [inspected, setInspected] = useState<Note[]>([]);
   const { settings } = s;
   const barCount = Math.ceil(lesson.beats / lesson.meter);
   const focusBar = s.busy ? Math.min(settings.endBar, Math.floor(s.position / lesson.meter)) : browseBar ?? settings.startBar;
@@ -23,11 +25,15 @@ export function PracticeRoom({ lesson, studio: s, onCourses, onHistory, video, o
     && note.beat >= settings.startBar * lesson.meter && note.beat < (settings.endBar + 1) * lesson.meter);
   const low = Math.min(48, ...lesson.notes.map(note => note.midi));
   const high = Math.max(72, ...lesson.notes.map(note => note.midi));
-  const targets = settings.hints ? s.target : [];
+  const preview = !s.busy && inspected.length > 0;
+  const targets = settings.hints ? (preview ? inspected : s.target) : [];
+  const cursorBeat = s.busy && (settings.hints || settings.mode === 'rhythm' || s.status === 'demo') ? s.position
+    : preview ? inspected[0].beat : targets[0]?.beat;
   const canPlay = selected.length > 0;
   const result = s.result;
   const playback = useRef({ studio: s, canPlay });
   playback.current = { studio: s, canPlay };
+  useEffect(() => { setInspected([]); }, [s.busy, browseBar, settings.startBar, settings.endBar, settings.hands, settings.hints]);
 
   // Let focused controls and open Radix layers own their keyboard events.
   useEffect(() => {
@@ -59,8 +65,9 @@ export function PracticeRoom({ lesson, studio: s, onCourses, onHistory, video, o
       <PracticeControls studio={s} lesson={lesson} barCount={barCount} canPlay={canPlay} onRangeChange={() => setBrowseBar(null)} />
       <div className={'music-desk' + (guide ? ' with-guide' : '')}>
         <div className="instrument">
-          <Score lesson={lesson} focusBar={focusBar} active={targets.map(note => note.id)} hits={s.hits}
-            hands={settings.hands} busy={s.busy} onBrowse={setBrowseBar}
+          <Score lesson={lesson} focusBar={focusBar} startBar={settings.startBar} cursorBeat={cursorBeat}
+            active={targets} hits={s.hits} inspected={inspected} hands={settings.hands} busy={s.busy} onBrowse={setBrowseBar}
+            onPreview={notes => { setInspected(notes); void s.previewNotes(notes); }}
             onBar={startBar => {
               setBrowseBar(null);
               s.setSettings(previous => ({ ...previous, startBar, endBar: Math.max(startBar, previous.endBar) }));

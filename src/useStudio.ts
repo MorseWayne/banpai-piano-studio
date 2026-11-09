@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { piano } from './audio';
 import { Judge, decodeMidi, groupNotes, matchesHand, type Attempt, type Hands, type Lesson, type Mode, type Note } from './model';
 import { loadAttempts, save } from './storage';
@@ -19,6 +19,12 @@ export function useStudio(lesson:Lesson) {
   const callbackRef=useRef<(data:number[])=>void>(()=>{});
   const busy=status==='counting'||status==='running'||status==='demo';
   async function initialize() { setLoading(true);try{await piano.init();setReady(true);return true;}catch(e){setMessage(String(e));return false;}finally{setLoading(false);} }
+  async function previewNotes(notes: Note[]) {
+    const version = generation.current;
+    if (run.current || !await initialize() || version !== generation.current || run.current) return;
+    const at = piano.now;
+    for (const note of notes) piano.play(note.midi, 80, at, Math.min(1.5, note.duration * 60 / settingsRef.current.bpm));
+  }
   function stop(clearMessage=true) {generation.current++;clearTimeout(loopTimer.current);run.current=null;standalone.current=null;setClicking(false);piano.stop();inputHeld.current.clear();setDown(new Set());setPedal(false);setStatus('idle');setBeat(-1);setActive([]);if(clearMessage)setMessage('已暂停。准备好后可以重新开始。');}
   function finish(r:Run) {
     r.judge.finish(r.length);run.current=null;piano.stop();inputHeld.current.clear();setDown(new Set());setStatus('finished');setActive([]);setBeat(-1);
@@ -82,9 +88,9 @@ export function useStudio(lesson:Lesson) {
   useEffect(()=>{piano.setVolume(volume);},[volume]);
   useEffect(()=>{if(!device)return;const id=setInterval(()=>void refresh(),2500);return()=>clearInterval(id);},[device]);
   useEffect(()=>{const blur=()=>{if(inputHeld.current.size){for(const n of [...inputHeld.current.keys()])onUp(n);}piano.pedal(false);setPedal(false);};window.addEventListener('blur',blur);return()=>{window.removeEventListener('blur',blur);generation.current++;clearTimeout(loopTimer.current);piano.stop();void midi.disconnect();};},[]);
-  const target = status === 'idle' || status === 'counting'
+  const target = useMemo(() => status === 'idle' || status === 'counting'
     ? groupNotes(lesson.notes.filter(note => matchesHand(note, settings.hands)
       && note.beat >= settings.startBar * lesson.meter && note.beat < (settings.endBar + 1) * lesson.meter))[0] || []
-    : lesson.notes.filter(note => active.includes(note.id));
-  return {settings,setSettings,status,ready,loading,message,setMessage,down,target,hits,beat,position,volume,setVolume,attempts,result,devices,device,midiError,refresh,connectDevice,initialize,start,stop,onDown,onUp,busy,clicking,toggleClick,pedal};
+    : lesson.notes.filter(note => active.includes(note.id)), [lesson, active, status, settings.hands, settings.startBar, settings.endBar]);
+  return {settings,setSettings,status,ready,loading,message,setMessage,down,target,hits,beat,position,volume,setVolume,attempts,result,devices,device,midiError,refresh,connectDevice,initialize,previewNotes,start,stop,onDown,onUp,busy,clicking,toggleClick,pedal};
 }
