@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, BookOpen, Box, CheckCircle2, ChevronRight, KeyboardMusic, ListMusic, Music2, X } from 'lucide-react';
-import { Fingering } from './components';
 import { Score } from './Score';
 import { Keyboard } from './Keyboard';
 import { HandKeyboard } from './HandKeyboard';
@@ -9,13 +8,12 @@ import { matchesHand, type Lesson, type Note } from './model';
 import { PracticeControls } from './PracticeControls';
 import type { useStudio } from './useStudio';
 
-export function PracticeRoom({ lesson, studio: s, onCourses, onHistory, video, onVideo }: {
+export function PracticeRoom({ lesson, studio: s, onCourses, onHistory, onLearning }: {
   lesson: Lesson;
   studio: ReturnType<typeof useStudio>;
   onCourses: () => void;
   onHistory: () => void;
-  video: string;
-  onVideo: (file: File) => void;
+  onLearning: () => void;
 }) {
   const [guide, setGuide] = useState(false);
   const [browseBar, setBrowseBar] = useState<number | null>(null);
@@ -24,16 +22,16 @@ export function PracticeRoom({ lesson, studio: s, onCourses, onHistory, video, o
   const [handError, setHandError] = useState(false);
   const { settings } = s;
   const barCount = Math.ceil(lesson.beats / lesson.meter);
-  const focusBar = s.busy ? Math.min(settings.endBar, Math.floor(s.position / lesson.meter)) : browseBar ?? settings.startBar;
+  const focusBar = s.busy || s.status === 'paused' ? Math.min(settings.endBar, Math.floor(s.position / lesson.meter)) : browseBar ?? settings.startBar;
   const selected = useMemo(() => lesson.notes.filter(note => matchesHand(note, settings.hands)
     && note.beat >= settings.startBar * lesson.meter && note.beat < (settings.endBar + 1) * lesson.meter),
     [lesson, settings.hands, settings.startBar, settings.endBar]);
   const low = Math.min(48, ...lesson.notes.map(note => note.midi));
   const high = Math.max(72, ...lesson.notes.map(note => note.midi));
-  const preview = !s.busy && inspected.length > 0;
+  const preview = !s.busy && s.status !== 'paused' && inspected.length > 0;
   const handNotes = useMemo(() => preview ? [...selected, ...inspected] : selected, [preview, selected, inspected]);
   const targets = settings.hints ? (preview ? inspected : s.target) : [];
-  const cursorBeat = s.busy && (settings.hints || settings.mode === 'rhythm' || s.status === 'demo') ? s.position
+  const cursorBeat = (s.busy || s.status === 'paused') && (settings.hints || settings.mode === 'rhythm' || s.status === 'demo') ? s.position
     : preview ? inspected[0].beat : targets[0]?.beat;
   const canPlay = selected.length > 0;
   const result = s.result;
@@ -50,6 +48,7 @@ export function PracticeRoom({ lesson, studio: s, onCourses, onHistory, video, o
       if (event.target instanceof Element && event.target.closest('button, input, select, textarea, a, summary, video, [contenteditable="true"]')) return;
       event.preventDefault();
       if (studio.busy) studio.stop();
+      else if (studio.status === 'paused') void studio.resume();
       else if (canPlay) void studio.start();
     }
     window.addEventListener('keydown', shortcut);
@@ -64,15 +63,15 @@ export function PracticeRoom({ lesson, studio: s, onCourses, onHistory, video, o
           <h1>{lesson.title}</h1>
           <p>{lesson.subtitle}</p>
         </div>
-        <button className="soft-button guide-toggle" aria-expanded={guide} aria-controls="lesson-guide" onClick={() => setGuide(!guide)}>
-          <BookOpen size={16} />练习指导
+        <button className="soft-button guide-toggle" aria-expanded={guide} aria-controls="lesson-guide" onClick={() => { if (!guide) s.pause(); setGuide(!guide); }}>
+          <BookOpen size={16} />本课要点
         </button>
       </div>
       <PracticeControls studio={s} lesson={lesson} barCount={barCount} canPlay={canPlay} onRangeChange={() => setBrowseBar(null)} />
       <div className={'music-desk' + (guide ? ' with-guide' : '')}>
         <div className="instrument">
           <Score lesson={lesson} focusBar={focusBar} startBar={settings.startBar} cursorBeat={cursorBeat}
-            active={targets} hits={s.hits} inspected={inspected} hands={settings.hands} busy={s.busy} onBrowse={setBrowseBar}
+            active={targets} hits={s.hits} inspected={inspected} hands={settings.hands} busy={s.busy || s.status === 'paused'} onBrowse={setBrowseBar}
             onPreview={notes => { setInspected(notes); void s.previewNotes(notes); }}
             onBar={startBar => {
               setBrowseBar(null);
@@ -113,10 +112,10 @@ export function PracticeRoom({ lesson, studio: s, onCourses, onHistory, video, o
           </section>}
         </div>
         {guide && <aside id="lesson-guide" className="guide">
-          <div className="panel-title"><h2><BookOpen size={17} />练习指导</h2><button className="icon-button" aria-label="收起练习指导" onClick={() => setGuide(false)}><X size={17} /></button></div>
+          <div className="panel-title"><h2><BookOpen size={17} />本课要点</h2><button className="icon-button" aria-label="收起本课要点" onClick={() => setGuide(false)}><X size={17} /></button></div>
           <section><h3>{lesson.theory.title}</h3><p>{lesson.theory.body}</p><p className="music-example">{lesson.theory.example}</p></section>
-          <Fingering notes={targets} tip={lesson.tip} video={video} onVideo={onVideo} />
-          <details><summary>练习前的提醒</summary><p>调整座椅高度，让手肘接近琴键，肩膀自然放松。指法 1 到 5 从拇指排到小指。图示是建议指法，MIDI 无法识别实际手型。</p></details>
+          <section><h3>动作提醒</h3><p>{lesson.tip}</p></section>
+          <button className="soft-button" onClick={onLearning}>查看完整讲解<ArrowRight size={15} /></button>
         </aside>}
       </div>
       <div className="practice-footnote"><ListMusic size={15} />{lesson.source} · {barCount} 小节 · {lesson.meter}/4 拍<span>已选 {selected.length} 个音</span></div>

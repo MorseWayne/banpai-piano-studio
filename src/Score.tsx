@@ -5,6 +5,7 @@ import { groupNotes, type Hands, type Lesson, type Note } from './model';
 import { divisions, scoreMusicXml, writtenPitch } from './scoreMusicXml';
 
 interface ScoreProps {
+  purpose?: 'practice' | 'study';
   lesson: Lesson;
   focusBar: number;
   startBar: number;
@@ -23,11 +24,14 @@ function describe(notes: Note[], meter: number) {
   const first = notes[0];
   const bar = Math.floor(first.beat / meter);
   const beat = Number((first.beat - bar * meter + 1).toFixed(2));
-  const pitches = notes.map(note => {
-    const { step, alter, octave } = writtenPitch(note);
-    return step + ['♭', '', '♯'][alter + 1] + octave + (note.finger ? `（${note.finger} 指）` : '');
-  }).join('、');
-  return `第 ${bar + 1} 小节 · 第 ${beat} 拍 · ${first.hand === 'right' ? '右手' : '左手'} ${pitches}`;
+  const parts = [...new Set(notes.map(note => note.hand))].map(hand => {
+    const pitches = notes.filter(note => note.hand === hand).map(note => {
+      const { step, alter, octave } = writtenPitch(note);
+      return step + ['♭', '', '♯'][alter + 1] + octave + (note.finger ? `（${note.finger} 指）` : '');
+    }).join('、');
+    return `${hand === 'right' ? '右手' : '左手'} ${pitches}`;
+  });
+  return `第 ${bar + 1} 小节 · 第 ${beat} 拍 · ${parts.join(' · ')}`;
 }
 
 interface DrawnGroup { notes: Note[]; graphic: VexFlowGraphicalNote; element: SVGGElement }
@@ -71,7 +75,7 @@ function indexPage(display: OpenSheetMusicDisplay, lesson: Lesson, firstBar: num
   return { groups, beats, cursor };
 }
 
-export function Score({ lesson, focusBar, startBar, cursorBeat, active, hits, hands, busy, inspected, onPreview, onBrowse, onBar }: ScoreProps) {
+export function Score({ purpose = 'practice', lesson, focusBar, startBar, cursorBeat, active, hits, hands, busy, inspected, onPreview, onBrowse, onBar }: ScoreProps) {
   const host = useRef<HTMLDivElement>(null);
   const cursorStep = useRef(0);
   const [width, setWidth] = useState(0);
@@ -190,9 +194,9 @@ export function Score({ lesson, focusBar, startBar, cursorBeat, active, hits, ha
     const group = id && page?.groups.get(id);
     if (group) onPreview(group.notes);
   }
-  return <section className="sheet" aria-label="练习乐谱">
+  return <section className="sheet" aria-label={purpose === 'study' ? '示范乐谱' : '练习乐谱'}>
     <div className="sheet-heading">
-      <h2><Music2 size={16} />练习乐谱</h2>
+      <h2><Music2 size={16} />{purpose === 'study' ? '示范乐谱' : '练习乐谱'}</h2>
       <div className="score-legend"><span><i className="right" />右手</span><span><i className="left" />左手</span></div>
       <div className="sheet-tools">
         <select aria-label="谱面大小" value={zoom} onChange={event => setZoom(Number(event.target.value))}>
@@ -214,9 +218,9 @@ export function Score({ lesson, focusBar, startBar, cursorBeat, active, hits, ha
     {error && <p className="error" role="alert">谱面加载失败。{error}</p>}
     <div className="sheet-footer">
       <span className="score-audition"><Headphones size={15} />{busy ? (showCursor ? '跟随光标读谱' : '独立读谱') : inspected.length ? describe(inspected, lesson.meter) : '点音符试听'}</span>
-      <div className="bar-labels" role="group" aria-label="选择起练小节"><span>起练</span>
+      <div className="bar-labels" role="group" aria-label={purpose === 'study' ? '浏览小节' : '选择起练小节'}><span>{purpose === 'study' ? '定位' : '起练'}</span>
         {Array.from({ length: count }, (_, i) => <button key={bar + i} disabled={busy} aria-pressed={startBar === bar + i}
-          title="从这一小节开始练习" onClick={() => onBar(bar + i)}>第 {bar + i + 1} 小节</button>)}
+          title={purpose === 'study' ? '查看这一小节' : '从这一小节开始练习'} onClick={() => onBar(bar + i)}>第 {bar + i + 1} 小节</button>)}
       </div>
     </div>
   </section>;

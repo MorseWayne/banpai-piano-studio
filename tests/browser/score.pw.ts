@@ -1,9 +1,15 @@
 import { expect, test } from '@playwright/test';
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('banpai:lastLesson')) localStorage.setItem('banpai:lastLesson', JSON.stringify('pulse'));
+  });
+});
+
 test('auditioning a note shows its key; playing moves the cursor without replacing the score', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: '学习路径' }).click();
-  await page.getByRole('button', { name: /让旋律走两步/ }).click();
+  await page.getByRole('button', { name: /直接练习 · 让旋律走两步/ }).click();
   const sheet = page.getByRole('region', { name: '练习乐谱' });
   const e = sheet.getByRole('button', { name: /试听第 1 小节 · 第 3 拍 · 右手 E4/ });
   await e.focus();

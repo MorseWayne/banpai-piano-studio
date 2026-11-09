@@ -1,9 +1,15 @@
 import { expect, test } from '@playwright/test';
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('banpai:lastLesson')) localStorage.setItem('banpai:lastLesson', JSON.stringify('pulse'));
+  });
+});
+
 test('the playable 3D view follows the lesson and switches back to the regular piano', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: '学习路径' }).click();
-  await page.getByRole('button', { name: /让旋律走两步/ }).click();
+  await page.getByRole('button', { name: /直接练习 · 让旋律走两步/ }).click();
   const toggle = page.getByRole('button', { name: '3D 指法' });
   await toggle.click();
   await expect(page.locator('.hand-stage')).toHaveAttribute('aria-busy', 'false', { timeout: 15000 });
@@ -73,7 +79,7 @@ test('the playable 3D view follows the lesson and switches back to the regular p
 test('inspection keeps both staves and camera controls visible at desktop sizes and fits a narrow screen', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: '学习路径' }).click();
-  await page.getByRole('button', { name: /一只手保持，一只手前进/ }).click();
+  await page.getByRole('button', { name: /直接练习 · 一只手保持，一只手前进/ }).click();
   await page.getByRole('button', { name: '3D 指法' }).click();
   await expect(page.locator('.hand-stage')).toHaveAttribute('aria-busy', 'false');
   await page.getByRole('button', { name: '拇指特写', exact: true }).click();

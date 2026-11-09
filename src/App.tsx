@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowDownToLine, ArrowRight, BookOpen, Check, ChevronRight, History, KeyboardMusic, Library, Music2, Plus, Upload } from 'lucide-react';
+import { ArrowDownToLine, ArrowRight, BookOpen, History, KeyboardMusic, Library, Music2, Plus, Upload } from 'lucide-react';
 import { lessons, goals } from './lessons';
 import { type Lesson } from './model';
 import { useStudio } from './useStudio';
-import { loadImports, read, save } from './storage';
+import { loadImports, loadLearning, read, save } from './storage';
 import { importMusicXML } from './import';
 import { DeviceSettings } from './DeviceSettings';
 import { PracticeRoom } from './PracticeRoom';
+import { LessonStudy } from './LessonStudy';
+import { readingFor } from './learning';
 
 const navigation = [
   { id: 'practice', label: '练习室', icon: KeyboardMusic },
@@ -14,17 +16,21 @@ const navigation = [
   { id: 'songs', label: '想弹的歌', icon: Library },
   { id: 'history', label: '练习记录', icon: History },
 ] as const;
-type Page = typeof navigation[number]['id'];
+type Page = typeof navigation[number]['id'] | 'learn';
 
 export default function App() {
-  const [page, setPage] = useState<Page>('practice');
+  const [page, setPage] = useState<Page>(() => read('lastLesson', '') ? 'practice' : 'courses');
   const [imports, setImports] = useState<Lesson[]>(loadImports);
-  const [lessonId, setLessonId] = useState(() => read('lastLesson', 'pulse'));
+  const [lessonId, setLessonId] = useState(() => read('lastLesson', 'posture'));
   const lesson = [...lessons, ...imports].find(item => item.id === lessonId) ?? lessons[0];
   const studio = useStudio(lesson);
   const completed = new Set(studio.attempts.filter(attempt => attempt.hit === attempt.total && attempt.wrong === 0
     && attempt.assisted === false && attempt.fullLesson).map(attempt => attempt.lessonId));
   const completedCount = lessons.filter(item => completed.has(item.id)).length;
+  const practiced = new Set(studio.attempts.map(attempt => attempt.lessonId));
+  const [learning, setLearning] = useState(loadLearning);
+  const [learningError, setLearningError] = useState('');
+  const learned = new Set(lessons.filter(item => readingFor(item).checks.every((_, index) => learning[item.id]?.includes(String(index)))).map(item => item.id));
   const [importError, setImportError] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
   const importGoal = useRef('');
@@ -39,14 +45,25 @@ export default function App() {
 
   function navigate(next: Page) {
     if (page === next) return;
-    studio.stop(false);
+    if (!(next === 'practice' && studio.status === 'paused')) studio.stop(false);
     setPage(next);
     window.scrollTo(0, 0);
   }
   function selectLesson(id: string) {
+    studio.stop(false);
     setLessonId(id);
     setVideoFile(null);
     navigate('practice');
+  }
+  function openLearning(id: string) {
+    if (id === lesson.id) studio.pause();
+    else { studio.stop(false); setVideoFile(null); }
+    setLessonId(id); setPage('learn'); window.scrollTo(0, 0);
+  }
+  function updateLearning(checks: string[]) {
+    const next = { ...learning, [lesson.id]: checks };
+    if (!save('learning', next)) { setLearningError('学习进度保存失败，请释放本机存储空间后重试。'); return; }
+    setLearning(next); setLearningError('');
   }
   function requestImport(title = '') {
     importGoal.current = title;
@@ -82,24 +99,31 @@ export default function App() {
           <a href="#" className="brand" aria-label="半拍练习室" onClick={event => { event.preventDefault(); navigate('practice'); }}>
             <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>半拍
           </a>
-          <nav aria-label="主导航">{navigation.map(item => <button key={item.id} aria-current={page === item.id ? 'page' : undefined}
+          <nav aria-label="主导航">{navigation.map(item => <button key={item.id} aria-current={page === item.id || (page === 'learn' && item.id === 'courses') ? 'page' : undefined}
             onClick={() => navigate(item.id)}><item.icon size={16} />{item.label}</button>)}</nav>
           <DeviceSettings studio={studio} />
         </div>
       </header>
       <main className={page === 'practice' ? 'practice-page' : undefined}>
+        {learningError && <p className="error" role="alert">{learningError}</p>}
         {page === 'practice' && <PracticeRoom key={lesson.id} lesson={lesson} studio={studio}
-          onCourses={() => navigate('courses')} onHistory={() => navigate('history')} video={video} onVideo={setVideoFile} />}
+          onCourses={() => navigate('courses')} onHistory={() => navigate('history')} onLearning={() => openLearning(lesson.id)} />}
+        {page === 'learn' && <LessonStudy key={lesson.id} lesson={lesson} checked={learning[lesson.id] ?? []}
+          onCheck={updateLearning} onPractice={() => navigate('practice')} onBack={() => navigate('courses')}
+          onPreview={notes => { void studio.previewNotes(notes); }} video={video} onVideo={setVideoFile} paused={studio.status === 'paused'} />}
         {page === 'courses' && <>
-          <div className="page-heading"><div><h1>学习路径</h1><p>从单音拍感到双手配合，按顺序练习，也可以直接选课。</p></div>
-            <div className="course-progress"><b>{completedCount} / {lessons.length} 课独立完成</b><progress value={completedCount} max={lessons.length} /></div>
+          <div className="page-heading"><div><h1>学习路径</h1><p>从坐姿与用指开始，逐步进入读谱、拍感和双手配合。</p></div>
+            <div className="course-progress"><b>已学习 {learned.size} / {lessons.length} 课</b><progress value={learned.size} max={lessons.length} /></div>
           </div>
-          <div className="library-list">{lessons.map(item => <button className="lesson-row" key={item.id} onClick={() => selectLesson(item.id)}>
-            <div><small>{item.stage}</small><h2>{item.title}</h2><p>{item.subtitle}</p></div>
-            <span className="row-meta">{item.bpm} BPM · {Math.ceil(item.beats / item.meter)} 小节</span>
-            <span className="row-action">{completed.has(item.id) && <Check size={15} />}
-              {completed.has(item.id) ? '独立完成过' : item.id === lesson.id ? '继续练习' : '练习'}<ChevronRight size={16} /></span>
-          </button>)}</div>
+          <div className="course-overview"><span>已学习 <b>{learned.size}</b></span><span>已练习 <b>{lessons.filter(item => practiced.has(item.id)).length}</b></span><span>独立完成 <b>{completedCount}</b></span></div>
+          {[...new Set(lessons.map(item => item.stage))].map(stage => <section className="course-section" key={stage} aria-label={stage}>
+            <h2>{stage}</h2><div className="library-list">{lessons.filter(item => item.stage === stage).map(item => <article className="lesson-row course-row" key={item.id} aria-label={item.title}>
+              <div className="course-description"><h3>{item.title}</h3><p>{item.subtitle}</p>
+                <div className="course-status"><span data-done={learned.has(item.id)}>{learned.has(item.id) ? '已学习' : '待学习'}</span><span data-done={practiced.has(item.id)}>{practiced.has(item.id) ? '已练习' : '待练习'}</span><span data-done={completed.has(item.id)}>{completed.has(item.id) ? '独立完成' : '待独立完成'}</span></div></div>
+              <div className="course-actions"><button className="soft-button" aria-label={`学习讲解 · ${item.title}`} onClick={() => openLearning(item.id)}><BookOpen size={15} />学习讲解</button>
+                <button className="text-button" aria-label={`直接练习 · ${item.title}`} onClick={() => selectLesson(item.id)}>直接练习<ArrowRight size={15} /></button></div>
+            </article>)}</div>
+          </section>)}
         </>}
         {page === 'songs' && <>
           <div className="page-heading"><div><h1>想弹的歌</h1><p>导入自己的简化谱，分手或分小节练习。</p></div>

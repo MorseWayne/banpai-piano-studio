@@ -37,7 +37,8 @@ export function PracticeControls({ studio: s, lesson, barCount, canPlay, onRange
   canPlay: boolean;
   onRangeChange: () => void;
 }) {
-  const { settings, setSettings, busy } = s;
+  const { settings, setSettings } = s;
+  const busy = s.busy || s.status === 'paused';
   const bars = Array.from({ length: barCount }, (_, index) => index);
   function setTempo(bpm: number) {
     setSettings(previous => ({ ...previous, bpm: Math.max(30, Math.min(160, bpm)) }));
@@ -46,10 +47,11 @@ export function PracticeControls({ studio: s, lesson, barCount, canPlay, onRange
     <div className="practice-controls" aria-label="练习控制" role="group">
       <div className="play-controls">
         <button className="primary-button" disabled={s.loading || (!busy && !canPlay)}
-          onClick={() => busy ? s.stop() : void s.start()} title="空格键开始或停止">
-          {busy ? <Square size={15} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
-          {s.loading ? '准备中…' : busy ? '停止' : '开始练习'}
+          onClick={() => s.status === 'paused' ? void s.resume() : s.busy ? s.stop() : void s.start()} title="空格键开始或停止">
+          {s.busy ? <Square size={15} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+          {s.loading ? '准备中…' : s.status === 'paused' ? '继续练习' : s.busy ? '停止' : '开始练习'}
         </button>
+        {s.status === 'paused' && <button className="soft-button" onClick={() => s.stop()}>结束本轮</button>}
         <button className="soft-button" disabled={s.loading || busy || !canPlay} onClick={() => void s.start(true)}>
           <Headphones size={17} />听示范
         </button>

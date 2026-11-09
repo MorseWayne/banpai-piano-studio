@@ -1,5 +1,11 @@
 import { expect, test } from '@playwright/test';
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('banpai:lastLesson')) localStorage.setItem('banpai:lastLesson', JSON.stringify('pulse'));
+  });
+});
+
 test('the piano adapts its range and plays a two-note touch chord', async ({ page }) => {
   await page.goto('/');
   const piano = page.getByRole('group', { name: '钢琴键盘' });
@@ -7,7 +13,7 @@ test('the piano adapts its range and plays a two-note touch chord', async ({ pag
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(piano.getByRole('button')).toHaveCount(25);
   await page.getByRole('button', { name: '学习路径' }).click();
-  await page.getByRole('button', { name: /两只手，一起落下/ }).click();
+  await page.getByRole('button', { name: /直接练习 · 两只手，一起落下/ }).click();
   const bass = piano.getByRole('button', { name: 'C3 琴键', exact: true });
   const treble = piano.getByRole('button', { name: 'C4 琴键', exact: true });
   await expect(bass).toHaveAttribute('data-hand', 'left');
@@ -115,8 +121,8 @@ test('a narrow screen can browse individual bars and import a score into the pla
   await page.getByRole('button', { name: '下一页乐谱' }).click();
   await expect(page.getByRole('button', { name: '第 2 小节', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: '练习片段' })).toContainText('1–2');
-  await page.getByRole('button', { name: '练习指导', exact: true }).click();
-  await expect(page.getByRole('heading', { name: '指法示范' })).toBeVisible();
+  await page.getByRole('button', { name: '本课要点', exact: true }).click();
+  await expect(page.getByRole('button', { name: '查看完整讲解' })).toBeVisible();
   await page.getByRole('button', { name: '想弹的歌' }).click();
   const chooser = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: '导入 MusicXML' }).click();
