@@ -22,13 +22,15 @@
     "lucide-react": "^0.468.0",
     "opensheetmusicdisplay": "^2.3.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "three": "^0.187.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.51.0",
     "@tauri-apps/cli": "^2.8.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
+    "@types/three": "^0.187.0",
     "@types/webmidi": "^2.0.10",
     "@vitejs/plugin-react": "^4.5.0",
     "typescript": "~5.8.3",

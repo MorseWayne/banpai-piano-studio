@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, BookOpen, CheckCircle2, ChevronRight, KeyboardMusic, ListMusic, Music2, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowRight, BookOpen, Box, CheckCircle2, ChevronRight, KeyboardMusic, ListMusic, Music2, X } from 'lucide-react';
 import { Fingering } from './components';
 import { Score } from './Score';
 import { Keyboard } from './Keyboard';
+import { HandKeyboard } from './HandKeyboard';
+import { read, save } from './storage';
 import { matchesHand, type Lesson, type Note } from './model';
 import { PracticeControls } from './PracticeControls';
 import type { useStudio } from './useStudio';
@@ -18,14 +20,18 @@ export function PracticeRoom({ lesson, studio: s, onCourses, onHistory, video, o
   const [guide, setGuide] = useState(false);
   const [browseBar, setBrowseBar] = useState<number | null>(null);
   const [inspected, setInspected] = useState<Note[]>([]);
+  const [showHands, setShowHands] = useState(() => read<boolean>('showHands', false) === true);
+  const [handError, setHandError] = useState(false);
   const { settings } = s;
   const barCount = Math.ceil(lesson.beats / lesson.meter);
   const focusBar = s.busy ? Math.min(settings.endBar, Math.floor(s.position / lesson.meter)) : browseBar ?? settings.startBar;
-  const selected = lesson.notes.filter(note => matchesHand(note, settings.hands)
-    && note.beat >= settings.startBar * lesson.meter && note.beat < (settings.endBar + 1) * lesson.meter);
+  const selected = useMemo(() => lesson.notes.filter(note => matchesHand(note, settings.hands)
+    && note.beat >= settings.startBar * lesson.meter && note.beat < (settings.endBar + 1) * lesson.meter),
+    [lesson, settings.hands, settings.startBar, settings.endBar]);
   const low = Math.min(48, ...lesson.notes.map(note => note.midi));
   const high = Math.max(72, ...lesson.notes.map(note => note.midi));
   const preview = !s.busy && inspected.length > 0;
+  const handNotes = useMemo(() => preview ? [...selected, ...inspected] : selected, [preview, selected, inspected]);
   const targets = settings.hints ? (preview ? inspected : s.target) : [];
   const cursorBeat = s.busy && (settings.hints || settings.mode === 'rhythm' || s.status === 'demo') ? s.position
     : preview ? inspected[0].beat : targets[0]?.beat;
@@ -84,13 +90,21 @@ export function PracticeRoom({ lesson, studio: s, onCourses, onHistory, video, o
             <div className="keyboard-heading"><h2><KeyboardMusic size={17} />屏幕琴键</h2>
               <span className="keyboard-source">{s.device?.name || '点击弹奏'}</span>
               {s.device && <span className="pedal-state">踏板{s.pedal ? '按下' : '松开'}</span>}
+              <button className="hand-toggle" aria-pressed={showHands} onClick={() => {
+                setShowHands(!showHands); setHandError(false); save('showHands', !showHands);
+              }}><Box size={14} />3D 指法</button>
               <label><input type="checkbox" checked={settings.hints} onChange={event => {
                 const hints = event.target.checked;
                 s.setSettings(previous => ({ ...previous, hints }));
               }} />目标音提示</label>
             </div>
-            <Keyboard down={s.down} target={targets} onDown={note => s.onDown(note)} onUp={s.onUp}
-              low={low} high={high} />
+            {handError && <p className="hand-error" role="alert">立体视图加载失败，已切回普通琴键。</p>}
+            {showHands ? <HandKeyboard notes={handNotes} target={targets} down={s.down} hits={s.hits} beat={s.position}
+              motion={!settings.hints ? 'off' : s.status === 'demo' || (s.status === 'running' && settings.mode === 'rhythm')
+                ? 'timed' : s.status === 'running' ? 'wait' : 'preview'}
+              onDown={s.onDown} onUp={s.onUp} onFailure={() => { setShowHands(false); setHandError(true); save('showHands', false); }} />
+              : <Keyboard down={s.down} target={targets} onDown={note => s.onDown(note)} onUp={s.onUp}
+                low={low} high={high} />}
           </section>
           {result && <section className="result-strip" aria-label="本轮结果">
             <b>本轮结果</b><span>命中 {result.hit}/{result.total}</span><span>错音 {result.wrong}</span>

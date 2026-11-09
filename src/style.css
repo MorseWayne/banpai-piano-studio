@@ -118,6 +118,27 @@ main { width: min(100%, 1296px); padding: 25px 40px 32px; margin: auto; }
 .keyboard-heading input { accent-color: #bdd3bd; }
 .keyboard-source, .pedal-state { color: #cccaca; font-size: 11px; }
 .keyboard-source { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.hand-toggle { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border: 1px solid #737773; border-radius: 5px; color: #f4f3ed; font-size: 12px; white-space: nowrap; }
+.hand-toggle:hover { background: #4c504e; }
+.hand-toggle[aria-pressed="true"] { background: #e3ebde; border-color: #e3ebde; color: #244536; }
+.hand-view { overflow: hidden; border: 1px solid #414849; border-radius: 5px; background: #242b2b; }
+.hand-stage { position: relative; isolation: isolate; overflow: hidden; height: clamp(215px, 24vw, 315px); background: radial-gradient(ellipse at 52% 24%, #4b5251, #242a2a 80%); }
+.hand-stage canvas { width: 100%; height: 100%; display: block; pointer-events: none; }
+.hand-key { top: 0; border: 0; background: transparent; padding: 0; touch-action: none; }
+.hand-key.white { height: 100%; }
+.hand-key.black { height: 60%; z-index: 1; }
+.hand-key:focus-visible { outline: 2px solid #3973a0; outline-offset: -3px; }
+.hand-key-marker, .hand-key-name { position: absolute; left: 50%; transform: translateX(-50%); pointer-events: none; }
+.hand-key-marker { top: 15%; display: grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; background: #435d8b; color: white; font: 600 11px/1 system-ui; }
+.hand-key[data-hand="left"] .hand-key-marker { background: #715384; }
+.hand-key-name { bottom: 5%; color: #464943; font: 600 10px/1 system-ui; }
+.hand-loading { position: absolute; inset: 40% auto auto 50%; transform: translateX(-50%); background: #243232e8; color: white; border-radius: 5px; padding: 6px 12px; font-size: 13px; }
+.hand-readout { display: flex; justify-content: center; align-items: center; gap: 8px 24px; flex-wrap: wrap; min-height: 30px; padding: 4px 10px; color: #dedfd8; font-size: 12px; border-top: 1px solid #ffffff14; }
+.hand-readout span { display: inline-flex; align-items: center; gap: 7px; }
+.hand-readout i { width: 7px; height: 7px; border-radius: 50%; background: #91b4ed; }
+.hand-readout [data-hand="left"] i { background: #c4a1dd; }
+.hand-readout b { color: #fafbf8; font-weight: 550; }
+.hand-error { padding: 4px 0 8px; font-size: 12px; }
 .keybed-frame {
   border: 1px solid #141517;
   border-top: 3px solid #805152;
