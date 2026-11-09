@@ -4,7 +4,7 @@
 
 ## 运行
 
-本仓库提供应用源码。Windows 需要 Microsoft Edge WebView2 Runtime。启动应用后，进入右上角“连接 MIDI 键盘”，刷新并选择 MIDIPLUS 设备，再启用钢琴声音。
+本仓库提供应用源码。Windows 需要 Microsoft Edge WebView2 Runtime。启动应用后，进入右上角“连接 MIDI 键盘”，刷新并选择 MIDIPLUS 设备，点击“播放测试音”试听。
 
 没有连接键盘时，也可以点击屏幕琴键试听和体验找音练习。屏幕单次点击不能代替需要同时落键的双手练习。
 
@@ -21,6 +21,7 @@ npm run desktop
 
 ```powershell
 npm test
+npm run test:ui
 npm run build
 npm run desktop:build
 ```
@@ -28,6 +29,8 @@ npm run desktop:build
 桌面编译产物：`src-tauri/target/release/banpai.exe`，可双击运行。音色、字体与界面资源嵌入应用，不依赖开发服务器。`release/` 用于保存本机便携版打包输出，构建产物不提交到 Git。
 
 ## 当前可用
+
+练习室在谱面上方提供开始、示范、找音/跟拍和声部选择。点击 BPM 调整速度与节拍，点击小节范围设置片段与循环。“练习指导”可展开本课乐理、指法和本地示范视频。
 
 - 六个原创渐进练习：单音拍感、右手短音型、左手低音、双手同步、不同的保持时间、两小节乐句。
 - 钢琴大谱表、目标琴键、真实输入高亮、建议指法示意。
@@ -68,6 +71,7 @@ MIDI 只提供音符、力度及控制消息。应用不能识别实际使用了
 
 - TypeScript、Vite 生产构建和 Windows 原生编译通过。
 - 9 项自动测试通过：MIDI 消息、长按去重、和弦重叠、错音、节拍匹配、时值与课程数据约束。
+- `npm run test:ui` 使用 Playwright 和本机 Microsoft Edge，覆盖完整找音练习、双指和弦、模拟 MIDI 高亮、键盘操作、设置弹层、窄屏翻谱及 MusicXML 导入。
 - 界面操作验证：八个单音完成记录、课程切换、双手 MusicXML 导入、示范预备拍和速度设置。
 - Windows 应用已启动，内置音色加载成功；设备列表正常打开，但验证时没有连接 MIDI 键盘。
 - 尚未完成：真实 MIDIPLUS 硬件与端到端延迟测试、教师审核课程与手型视频。
@@ -77,9 +81,11 @@ MIDI 只提供音符、力度及控制消息。应用不能识别实际使用了
 ## 代码结构
 
 - `src/model.ts`：MIDI 消息归一化、分组与评分。
+- `src/PracticeRoom.tsx`、`src/PracticeControls.tsx`：练习室布局、播放控制与 Radix UI 交互组件。
 - `src/useStudio.ts`：练习状态、计时、MIDI 连接与记录。
 - `src/audio.ts`：钢琴音源、音量、踏板、节拍器。
-- `src/components.tsx`：五线谱、琴键、指法示意。
+- `src/components.tsx`：五线谱与指法示意。
+- `src/Keyboard.tsx`：基于 audio/ui Piano 的屏幕琴键，随可用宽度调整显示音域，并叠加课程指法和 MIDI 按键状态。
 - `src/import.ts`：MusicXML 导入与支持范围校验。
 - `src/lessons.ts`：渐进练习与简短乐理。
 - `src-tauri/src/main.rs`：Windows 原生 MIDI 桥接与桌面窗口。

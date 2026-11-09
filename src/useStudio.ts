@@ -38,7 +38,7 @@ export function useStudio(lesson:Lesson) {
     const wait=!demo&&s.mode==='wait';
     const startTime=piano.now+.12+(wait?0:s.countIn*l.meter*60/s.bpm);
     const r:Run={lesson:l,settings:s,notes:selected,judge:new Judge(selected,s.mode),start:startTime,length,startBeat,demo,scheduled:-s.countIn*l.meter,input:new Set(),assisted:s.hints};run.current=r;
-    setHits(new Set());setPosition(startBeat);setStatus(wait?'running':'counting');setMessage(demo?'听示范，观察谱面与指法。':wait?'按下高亮音符。这里可以慢慢找音。':'先听预备拍。拍子开始后，保持连续。');
+    setHits(new Set());setPosition(startBeat);setStatus(wait?'running':'counting');setMessage(demo?'听示范，观察谱面与指法。':wait?'按谱弹奏，弹对后进入下一组。':'先听预备拍。拍子开始后，保持连续。');
     setActive(wait?r.judge.current.map(n=>n.id):[]);
     if(!wait)for(const n of all){if(demo||(s.accompaniment&&s.hands!=='both'&&!matchesHand(n,s.hands)))piano.play(n.midi,n.hand==='left'?60:85,startTime+n.beat*60/s.bpm,n.duration*60/s.bpm*.94);}
   }
@@ -52,7 +52,7 @@ export function useStudio(lesson:Lesson) {
     const currentBeat=(piano.now-r.start)*r.settings.bpm/60-r.settings.offset/1000*r.settings.bpm/60;
     if(r.settings.mode==='rhythm'&&(currentBeat<-.15||currentBeat>=r.length+.4))return;
     r.assisted ||= settingsRef.current.hints;r.input.add(source);const verdict=r.judge.on(n,currentBeat);setHits(new Set(r.judge.hits));
-    if(verdict==='wrong')setMessage(r.settings.mode==='wait'?'看看高亮位置，再试一次。':'继续跟着拍子走，结束后再回顾。');
+    if(verdict==='wrong')setMessage(r.settings.mode==='wait'?'音高有偏差，请看谱再试一次。':'继续跟着拍子走，结束后再回顾。');
     if(r.settings.mode==='wait') {setActive(r.judge.current.map(n=>n.id));if(r.judge.current.length){setPosition(r.startBeat+r.judge.current[0].beat);if(verdict==='correct')setMessage('找到了。松开琴键，继续下一组。');}else setMessage('最后一个音找到了。自然松开琴键，完成这一轮。');}
   }
   function onUp(n:number) {inputHeld.current.delete(n);setDown(new Set(inputHeld.current.keys()));piano.off(n);const r=run.current;if(r&&!r.demo){r.judge.off(n,(piano.now-r.start)*r.settings.bpm/60-r.settings.offset/1000*r.settings.bpm/60);if(r.settings.mode==='wait'&&!r.judge.current.length&&!inputHeld.current.size)finish(r);}}
@@ -70,10 +70,21 @@ export function useStudio(lesson:Lesson) {
     if(t>=0){const ids=r.notes.filter(n=>n.beat<=t&&n.beat+n.duration>t).map(n=>n.id);setActive(prev=>prev.join(',')===ids.join(',')?prev:ids);}
     if(t>=r.length+.45)finish(r);
   },25);return()=>clearInterval(interval);},[]);
-  useEffect(()=>{stop(false);setSettings(s=>({...s,bpm:lesson.bpm,startBar:0,endBar:Math.min(1,Math.ceil(lesson.beats/lesson.meter)-1),hands:'both'}));setPosition(0);setHits(new Set());setResult(null);setMessage('先听一遍示范，再按自己的速度开始。');save('lastLesson',lesson.id);},[lesson.id]);
+  useEffect(() => {
+    stop(false);
+    const parts = new Set(lesson.notes.map(note => note.hand));
+    const hands = parts.size === 1 ? lesson.notes[0].hand : 'both';
+    setSettings(previous => ({ ...previous, bpm: lesson.bpm, hands, startBar: 0, endBar: Math.min(1, Math.ceil(lesson.beats / lesson.meter) - 1) }));
+    setPosition(0); setHits(new Set()); setResult(null);
+    setMessage('先听一遍示范，再按自己的速度开始。');
+    save('lastLesson', lesson.id);
+  }, [lesson.id]);
   useEffect(()=>{piano.setVolume(volume);},[volume]);
   useEffect(()=>{if(!device)return;const id=setInterval(()=>void refresh(),2500);return()=>clearInterval(id);},[device]);
   useEffect(()=>{const blur=()=>{if(inputHeld.current.size){for(const n of [...inputHeld.current.keys()])onUp(n);}piano.pedal(false);setPedal(false);};window.addEventListener('blur',blur);return()=>{window.removeEventListener('blur',blur);generation.current++;clearTimeout(loopTimer.current);piano.stop();void midi.disconnect();};},[]);
-  const target=active.length?lesson.notes.filter(n=>active.includes(n.id)):groupNotes(lesson.notes.filter(n=>matchesHand(n,settings.hands)&&n.beat>=settings.startBar*lesson.meter))[0]||[];
+  const target = status === 'idle' || status === 'counting'
+    ? groupNotes(lesson.notes.filter(note => matchesHand(note, settings.hands)
+      && note.beat >= settings.startBar * lesson.meter && note.beat < (settings.endBar + 1) * lesson.meter))[0] || []
+    : lesson.notes.filter(note => active.includes(note.id));
   return {settings,setSettings,status,ready,loading,message,setMessage,down,target,hits,beat,position,volume,setVolume,attempts,result,devices,device,midiError,refresh,connectDevice,initialize,start,stop,onDown,onUp,busy,clicking,toggleClick,pedal};
 }
