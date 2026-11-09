@@ -121,23 +121,56 @@ main { width: min(100%, 1296px); padding: 25px 40px 32px; margin: auto; }
 .hand-toggle { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border: 1px solid #737773; border-radius: 5px; color: #f4f3ed; font-size: 12px; white-space: nowrap; }
 .hand-toggle:hover { background: #4c504e; }
 .hand-toggle[aria-pressed="true"] { background: #e3ebde; border-color: #e3ebde; color: #244536; }
-.hand-view { overflow: hidden; border: 1px solid #414849; border-radius: 5px; background: #242b2b; }
-.hand-stage { position: relative; isolation: isolate; overflow: hidden; height: clamp(215px, 24vw, 315px); background: radial-gradient(ellipse at 52% 24%, #4b5251, #242a2a 80%); }
+.hand-view { position: relative; overflow: hidden; border: 1px solid #59675f; border-radius: 10px; background: #263630; box-shadow: 0 5px 16px #101e181c; }
+.hand-toolbar, .hand-bottom { display: flex; align-items: stretch; color: #c5d4cd; background: #24332e; }
+.hand-toolbar { border-bottom: 1px solid #dce7dc20; font-size: 11px; }
+.hand-main-tools { display: flex; align-items: center; gap: 3px; flex: 1; min-width: 0; padding: 4px 7px; }
+.hand-toolbar button, .hand-camera-tools button { display: inline-flex; align-items: center; justify-content: center; min-height: 28px; padding: 4px 10px; border-radius: 5px; white-space: nowrap; color: #c5d4cd; transition: background-color 150ms; }
+.hand-toolbar button:hover, .hand-camera-tools button:hover { background: #ffffff12; }
+.hand-toolbar button[aria-pressed="true"] { background: #dce7dc; color: #254137; font-weight: 600; box-shadow: 0 1px 3px #0c181b22; }
+.hand-main-tools .hand-detail-toggle { margin-left: auto; }
+.hand-toolbar button:focus-visible, .hand-camera-tools button:focus-visible { outline: 2px solid #b1cfbb; outline-offset: 1px; }
+.hand-stage { position: relative; isolation: isolate; overflow: hidden; height: clamp(180px, 22vw, 280px); background: radial-gradient(ellipse at 50% 25%, #6b7a70, #304039 80%); }
 .hand-stage canvas { width: 100%; height: 100%; display: block; pointer-events: none; }
+.hand-detail { display: flex; justify-content: space-between; align-items: center; flex: 0 0 var(--detail-width); min-width: 0; gap: 8px; padding: 4px 8px 4px 14px; border-left: 1px solid #dce7dc20; }
+.hand-detail-title { letter-spacing: .08em; color: #cad9cd; }
+.hand-detail > div { display: flex; gap: 2px; }
+.hand-detail-frame { position: absolute; inset: 0 0 0 auto; width: var(--detail-width); border-left: 1px solid #dce7dc20; pointer-events: none; }
+.hand-detail-empty { position: absolute; inset: 0 0 0 auto; width: var(--detail-width); display: grid; place-items: center; text-align: center; color: #dce7dc; background: #32423dc9; font-size: 12px; pointer-events: none; }
 .hand-key { top: 0; border: 0; background: transparent; padding: 0; touch-action: none; }
 .hand-key.white { height: 100%; }
 .hand-key.black { height: 60%; z-index: 1; }
 .hand-key:focus-visible { outline: 2px solid #3973a0; outline-offset: -3px; }
 .hand-key-marker, .hand-key-name { position: absolute; left: 50%; transform: translateX(-50%); pointer-events: none; }
-.hand-key-marker { top: 15%; display: grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; background: #435d8b; color: white; font: 600 11px/1 system-ui; }
+.hand-key-marker { top: 12%; display: grid; place-items: center; width: 20px; height: 20px; border: 1px solid #ffffffa0; box-shadow: 0 2px 5px #0003; border-radius: 50%; background: #435d8b; color: white; font: 600 11px/1 system-ui; }
 .hand-key[data-hand="left"] .hand-key-marker { background: #715384; }
 .hand-key-name { bottom: 5%; color: #464943; font: 600 10px/1 system-ui; }
 .hand-loading { position: absolute; inset: 40% auto auto 50%; transform: translateX(-50%); background: #243232e8; color: white; border-radius: 5px; padding: 6px 12px; font-size: 13px; }
-.hand-readout { display: flex; justify-content: center; align-items: center; gap: 8px 24px; flex-wrap: wrap; min-height: 30px; padding: 4px 10px; color: #dedfd8; font-size: 12px; border-top: 1px solid #ffffff14; }
+.hand-bottom { border-top: 1px solid #dce7dc20; }
+.hand-readout { display: flex; flex: 1; min-width: 0; justify-content: center; align-items: center; gap: 5px 20px; flex-wrap: wrap; min-height: 32px; padding: 3px 10px; color: #cbd8d0; font-size: 11px; }
 .hand-readout span { display: inline-flex; align-items: center; gap: 7px; }
 .hand-readout i { width: 7px; height: 7px; border-radius: 50%; background: #91b4ed; }
 .hand-readout [data-hand="left"] i { background: #c4a1dd; }
 .hand-readout b { color: #fafbf8; font-weight: 550; }
+.hand-camera-tools { display: flex; flex: 0 0 var(--detail-width); min-width: 0; align-items: center; gap: 4px; padding: 2px 7px 2px 14px; border-left: 1px solid #dce7dc20; font-size: 11px; }
+.hand-camera-tools label { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; white-space: nowrap; }
+.hand-camera-tools input { appearance: none; width: 100%; min-width: 24px; height: 20px; background: transparent; cursor: pointer; }
+.hand-camera-tools input::-webkit-slider-runnable-track { height: 3px; border-radius: 4px; background: #647e6f; }
+.hand-camera-tools input::-webkit-slider-thumb { appearance: none; width: 12px; height: 12px; margin-top: -4.5px; border: 2px solid #879e8f; border-radius: 50%; background: #e4eee4; box-shadow: 0 1px 4px #10211980; }
+.hand-camera-tools input::-moz-range-track { height: 3px; border-radius: 4px; background: #647e6f; }
+.hand-camera-tools input::-moz-range-thumb { width: 8px; height: 8px; border: 2px solid #879e8f; border-radius: 50%; background: #e4eee4; }
+.hand-camera-tools input:focus-visible { outline: 2px solid #b1cfbb; outline-offset: 2px; border-radius: 6px; }
+.hand-camera-tools output { width: 26px; flex-shrink: 0; font-variant-numeric: tabular-nums; color: #edf4ee; }
+.hand-camera-tools button { width: 28px; padding: 0; flex-shrink: 0; }
+.hand-camera-tools button:disabled { opacity: .35; }
+@media (max-width: 650px) {
+  .hand-toolbar { flex-wrap: wrap; }
+  .hand-main-tools { flex-basis: 100%; }
+  .hand-detail { flex-basis: 100%; border-left: 0; border-top: 1px solid #dce7dc20; padding-left: 12px; }
+  .hand-bottom { flex-wrap: wrap; }
+  .hand-readout, .hand-camera-tools { flex-basis: 100%; }
+  .hand-camera-tools { border-left: 0; border-top: 1px solid #dce7dc20; padding-left: 12px; }
+}
 .hand-error { padding: 4px 0 8px; font-size: 12px; }
 .keybed-frame {
   border: 1px solid #141517;
@@ -251,6 +284,38 @@ th { font-weight: 600; color: var(--muted); }
 td small { display: block; margin-top: 4px; color: var(--muted); }
 .library-note, .import-error { margin-top: 12px; }
 .error, .device-dialog .error { color: #a03628; }
+/* The score and hand demonstration share the available desktop viewport.
+   Extra score height scrolls inside its own pane, leaving the piano in place. */
+@media (min-width: 801px) and (min-height: 650px) {
+  .practice-page { height: calc(100dvh - 60px); padding-top: 14px; padding-bottom: 10px; display: flex; flex-direction: column; }
+  .practice-page .lesson-heading { margin-bottom: 8px; min-height: 36px; flex-shrink: 0; }
+  .practice-page .lesson-heading > div { display: flex; align-items: center; gap: 18px; }
+  .practice-page .lesson-path { margin: 0; }
+  .practice-page .lesson-heading h1 { font-size: 25px; }
+  .practice-page .lesson-heading p { display: none; }
+  .practice-page .practice-controls { flex-shrink: 0; position: relative; margin-bottom: 10px; padding-block: 7px; }
+  .practice-page .music-desk { flex: 1; min-height: 0; align-items: stretch; }
+  .practice-page .instrument { display: flex; flex-direction: column; min-height: 0; }
+  .practice-page .sheet { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .practice-page .score-stage { flex: 1; min-height: 0; overflow: auto; }
+  .practice-page .sheet-heading, .practice-page .sheet-footer { flex-shrink: 0; }
+  .practice-page .live-feedback { min-height: 34px; padding-block: 4px; flex-shrink: 0; font-size: 12px; }
+  .practice-page .keyboard-deck { flex-shrink: 0; }
+  .practice-page .hand-stage { height: clamp(115px, calc(100dvh - 590px), 260px); }
+  .practice-page .guide { min-height: 0; overflow: auto; }
+  .practice-page .practice-footnote { margin-top: 6px; font-size: 11px; flex-shrink: 0; }
+  .practice-page .result-strip { flex-shrink: 0; padding-block: 5px; font-size: 12px; }
+}
+@media (min-width: 801px) and (min-height: 650px) and (max-height: 780px) {
+  .practice-page { height: calc(100dvh - 52px); }
+  .practice-page .lesson-heading h1 { font-size: 21px; }
+  .practice-page .lesson-heading { margin-bottom: 6px; }
+  .practice-page .practice-controls { margin-bottom: 6px; }
+  .practice-page .sheet-heading { min-height: 32px; }
+  .practice-page .sheet-footer { min-height: 26px; }
+  .practice-page .live-feedback { min-height: 28px; }
+  .practice-page .keyboard-heading { margin-bottom: 4px; }
+}
 @media (max-width: 1040px) {
   .app-bar-inner, main { padding-inline: 22px; }
   .app-bar-inner { gap: 24px; }

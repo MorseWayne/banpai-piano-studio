@@ -24,9 +24,12 @@ export function fingeringFrame(notes: Note[], target: Note[], down: Set<number>,
   // still physically down, even after the judge has moved to the next group.
   const held = motion === 'wait' ? notes.filter(note => hits.has(note.id) && down.has(note.midi)
     && note.beat < beat && note.beat + note.duration >= beat) : [];
-  const current = [...held, ...target.filter(note => !held.some(previous => previous.hand === note.hand && previous.midi === note.midi))];
+  const current = [...held, ...target.filter(note => !held.some(previous => previous.hand === note.hand
+    && previous.midi === note.midi && previous.finger === note.finger))];
   frame.cues = current.map(note => ({ note, pressed: motion === 'timed'
-    ? beat >= note.beat && beat < note.beat + note.duration * .94 : down.has(note.midi) }));
+    ? beat >= note.beat && beat < note.beat + note.duration * .94
+    : down.has(note.midi) && !held.some(previous => previous.id !== note.id
+      && previous.hand === note.hand && previous.midi === note.midi && previous.finger !== note.finger) }));
   for (const hand of ['left', 'right'] as const) {
     const cues = frame.cues.filter(cue => cue.note.hand === hand);
     const fingers = cues.filter(cue => hasFinger(cue.note));

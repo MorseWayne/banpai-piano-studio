@@ -1,0 +1,14 @@
+Ultraleap GenericHand
+Copyright 2025 Ultraleap Limited.
+Licensed under the Apache License, Version 2.0. See ULTRALEAP-LICENSE.txt.
+
+Source repository: https://github.com/ultraleap/UnityPlugin
+Source asset: Packages/Tracking/Hands/Runtime/Models/GenericHand/GenericHand.fbx
+Source download: https://media.githubusercontent.com/media/ultraleap/UnityPlugin/develop/Packages/Tracking/Hands/Runtime/Models/GenericHand/GenericHand.fbx
+Source FBX SHA-256: 47abe80be2bc2ff6ad8012749dec03620ced45d479592bc901bba0b679125853
+
+Modified for Piano Studio with scripts/convert-ultraleap-hand.mjs.
+Changes: FBX converted to GLB, transforms normalized to piano coordinates,
+right-hand geometry mirrored with corrected winding, skin weights normalized
+to the four-weight format supported by Three.js, neutral physical material.
+The original joint hierarchy and skin binding are retained.

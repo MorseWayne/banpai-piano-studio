@@ -29,4 +29,23 @@ describe('3D fingering', () => {
     expect(frame.hands).toEqual({});
     expect(fingeringFrame(duet, [bass], new Set([48]), noHits, 0, 'off')).toEqual({ cues: [], hands: {} });
   });
+  it('prepares a new finger on the same key while retaining the held finger', () => {
+    const first: Note = { ...right[0], finger: 3 };
+    const second: Note = { ...first, id: 'replacement', finger: 2, beat: 1 };
+    const frame = fingeringFrame([first, second], [second], new Set([60]), new Set([first.id]), 1, 'wait');
+    expect(frame.hands.right?.fingers).toEqual([{ note: first, pressed: true }, { note: second, pressed: false }]);
+    const released = fingeringFrame([first, second], [second], noKeys, new Set([first.id]), 1, 'wait');
+    expect(released.hands.right?.fingers).toEqual([{ note: second, pressed: false }]);
+  });
+  it('anticipates thumb changes in both scale directions', () => {
+    const scale: Note[] = [
+      { ...right[0], midi: 64, finger: 3 },
+      { ...right[1], midi: 65, finger: 1 },
+    ];
+    const frame = fingeringFrame(scale, [scale[0]], noKeys, noHits, .85, 'timed');
+    expect(frame.hands.right?.fingers.map(cue => cue.note.finger)).toEqual([3, 1]);
+    const descending = [{ ...scale[1], beat: 0 }, { ...scale[0], beat: 1 }];
+    expect(fingeringFrame(descending, [descending[0]], noKeys, noHits, .85, 'timed')
+      .hands.right?.fingers.map(cue => cue.note.finger)).toEqual([1, 3]);
+  });
 });

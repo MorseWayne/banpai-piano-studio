@@ -40,6 +40,13 @@ npm run desktop:build
 - 本地钢琴采样、力度响应、延音踏板、停止全部声音、MIDI 断开暂停。
 - MusicXML 本地导入、练习记录保存与 JSON 导出、上次课程恢复。
 - 本地手部视频播放、慢放；视频只在本次应用会话内保留，不上传。
+- 3D 指法提供演奏视角和俯视键位，随目标音和实际按键显示指法与落键。可开启“拇指特写”，在完整键位旁同步显示拇指侧的低位观察画面，支持切换左右手、8°–40°观察高度、1.25 倍局部放大与镜头复位。控件位于画面上下，特写跟随拇指关节移动。桌面练习区按窗口高度分配谱面与演示空间。
+
+3D 手部采用 Ultraleap 官方 GenericHand 模型与原生骨骼绑定，模型以 Apache 2.0 许可分发，完整许可与转换说明见 `public/hands/ULTRALEAP-LICENSE.txt` 和 `public/hands/ULTRALEAP-NOTICE.txt`。界面使用柔和的中性材质，通过左手紫色、右手蓝色标出当前示范手指。Three.js 官方 CCDIKSolver 在关节角度约束内求解落键动作，保留骨骼层级与骨段长度。灯光复用 RoomEnvironment 与 PMREMGenerator。模型和灯光均支持离线运行。[Ultraleap 手模](https://github.com/ultraleap/UnityPlugin/tree/develop/Packages/Tracking/Hands/Runtime/Models/GenericHand) · [Three.js CCDIKSolver](https://threejs.org/docs/pages/CCDIKSolver.html)
+
+需要重新转换模型时，下载 NOTICE 中记录的 GenericHand.fbx，运行 `node scripts/convert-ultraleap-hand.mjs <FBX路径>`，即可生成项目使用的左右手 GLB。
+
+指法驱动按左右手、音高与 1–5 指编号工作，支持同音换指、连续换音、已按手指保持和下一指预备。移动使用抬指弧线，空闲手指与模型原有放松姿态混合。导入的 MusicXML 可直接携带指法，无指法的音仅显示键位。MIDI 提供音高和触键事件，实际使用哪根手指需要自行对照示范。穿指、跨指等精确教学动作仍需教师校准。
 
 找音模式不评价节奏。“独立完成”只统计整课、无目标音提示、无错音的完成记录；这不是对手型或完整演奏能力的认证。
 
@@ -70,8 +77,8 @@ MIDI 只提供音符、力度及控制消息。应用不能识别实际使用了
 ## 已完成的验证
 
 - TypeScript、Vite 生产构建和 Windows 原生编译通过。
-- 9 项自动测试通过：MIDI 消息、长按去重、和弦重叠、错音、节拍匹配、时值与课程数据约束。
-- `npm run test:ui` 使用 Playwright 和本机 Microsoft Edge，覆盖完整找音练习、双指和弦、模拟 MIDI 高亮、键盘操作、设置弹层、窄屏翻谱及 MusicXML 导入。
+- 16 项单元测试通过，覆盖 MIDI 消息、长按去重、和弦重叠、错音、节拍匹配、时值与课程数据约束，以及同音换指、拇指预备和左右手五指骨骼长度。
+- `npm run test:ui` 使用 Playwright 和本机 Microsoft Edge，11 项界面测试覆盖完整找音练习、双指和弦、模拟 MIDI 高亮、键盘操作、设置弹层、窄屏翻谱、MusicXML 导入，以及 3D 同音换指、特写镜头调节、双谱表可见性和模型加载失败回退。
 - 界面操作验证：八个单音完成记录、课程切换、双手 MusicXML 导入、示范预备拍和速度设置。
 - Windows 应用已启动，内置音色加载成功；设备列表正常打开，但验证时没有连接 MIDI 键盘。
 - 尚未完成：真实 MIDIPLUS 硬件与端到端延迟测试、教师审核课程与手型视频。
@@ -87,6 +94,7 @@ MIDI 只提供音符、力度及控制消息。应用不能识别实际使用了
 - `src/Score.tsx`、`src/scoreMusicXml.ts`：将课程音符交给 OpenSheetMusicDisplay 排版，并同步谱面试听、指法与跟弹光标。
 - `src/components.tsx`：指法示意和本地示范视频。
 - `src/Keyboard.tsx`：基于 audio/ui Piano 的屏幕琴键，随可用宽度调整显示音域，并叠加课程指法和 MIDI 按键状态。
+- `src/HandKeyboard.tsx`、`src/pianoScene.ts`、`src/pianoHandRig.ts`、`src/pianoHand.ts` 与 `src/fingeringPose.ts` 负责 3D 视图、模型骨骼适配、手指过渡和课程指法驱动。
 - `src/import.ts`：MusicXML 导入与支持范围校验。
 - `src/lessons.ts`：渐进练习与简短乐理。
 - `src-tauri/src/main.rs`：Windows 原生 MIDI 桥接与桌面窗口。

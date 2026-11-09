@@ -87,7 +87,7 @@ export default function App() {
           <DeviceSettings studio={studio} />
         </div>
       </header>
-      <main>
+      <main className={page === 'practice' ? 'practice-page' : undefined}>
         {page === 'practice' && <PracticeRoom key={lesson.id} lesson={lesson} studio={studio}
           onCourses={() => navigate('courses')} onHistory={() => navigate('history')} video={video} onVideo={setVideoFile} />}
         {page === 'courses' && <>
