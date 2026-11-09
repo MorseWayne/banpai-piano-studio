@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { piano } from './audio';
 import { Judge, decodeMidi, groupNotes, matchesHand, type Attempt, type Hands, type Lesson, type Mode, type Note } from './model';
-import { loadAttempts, save } from './storage';
+import { loadAttempts, loadPracticeProgress, save } from './storage';
+import { mergePracticeProgress } from './progress';
 import * as midi from './midi';
 export interface Settings { bpm:number; hands:Hands; mode:Mode; metronome:boolean; clickVolume:number; subdivisions:boolean; countIn:number; loop:boolean; accompaniment:boolean; startBar:number; endBar:number; offset:number; hints:boolean }
 interface Run { lesson:Lesson; settings:Settings; judge:Judge; notes:Note[]; all:Note[]; start:number; length:number; startBeat:number; resumeBeat:number; demo:boolean; scheduled:number; input:Set<string>; assisted:boolean }
@@ -12,6 +13,8 @@ export function useStudio(lesson:Lesson) {
   const [down,setDown]=useState(new Set<number>()),[active,setActive]=useState<string[]>([]),[hits,setHits]=useState(new Set<string>());
   const [beat,setBeat]=useState(-1),[position,setPosition]=useState(0),[volume,setVolume]=useState(.55);
   const [attempts,setAttempts]=useState<Attempt[]>(loadAttempts),[result,setResult]=useState<Attempt|null>(null);
+  const [practiceProgress, setPracticeProgress] = useState(() => mergePracticeProgress(loadPracticeProgress(), attempts));
+  const [progressError, setProgressError] = useState('');
   const [devices,setDevices]=useState<midi.MidiPort[]>([]),[device,setDevice]=useState<midi.MidiPort|null>(null),[midiError,setMidiError]=useState('');
   const run=useRef<Run|null>(null), inputHeld=useRef(new Map<number,string>()),currentDevice=useRef(device),standalone=useRef<{next:number,index:number}|null>(null);
   const pausedRun = useRef<{ run: Run; beat: number } | null>(null);
@@ -90,6 +93,7 @@ export function useStudio(lesson:Lesson) {
     r.judge.finish(r.length);run.current=null;piano.stop();inputHeld.current.clear();setDown(new Set());setStatus('finished');setActive([]);setBeat(-1);
     if(!r.demo&&r.input.size){const a:Attempt={id:crypto.randomUUID(),date:new Date().toISOString(),lessonId:r.lesson.id,title:r.lesson.title,bpm:r.settings.bpm,mode:r.settings.mode,hands:r.settings.hands,hit:r.judge.hits.size,total:r.notes.length,wrong:r.judge.wrong,early:r.judge.early,late:r.judge.late,durationErrors:r.judge.durationErrors,input:[...r.input].join(' / '),assisted:r.assisted,fullLesson:r.notes.length===r.lesson.notes.length};
       setResult(a);setAttempts(prev=>{const next=[a,...prev].slice(0,200);if(!save('attempts',next))setMessage('本机存储空间不足，本次记录尚未保存。');return next;});
+      setPracticeProgress(previous => mergePracticeProgress(previous, [a]));
       setMessage(a.hit===a.total?'完成这一轮。先放松双手，再决定是否继续。':'这一轮已记录。可以缩短片段或分手再试一次。');
     }else setMessage(r.demo?'示范结束。可以先分手、慢速尝试。':'这一轮没有收到演奏输入。连接 MIDI 键盘或使用屏幕琴键再试一次。');
     if(r.settings.loop&&!r.demo){loopTimer.current=setTimeout(()=>{if(!run.current&&settingsRef.current.loop&&lessonRef.current.id===r.lesson.id)void startRef.current(false);},700);}
@@ -147,11 +151,14 @@ export function useStudio(lesson:Lesson) {
     save('lastLesson', lesson.id);
   }, [lesson.id]);
   useEffect(()=>{piano.setVolume(volume);},[volume]);
+  useEffect(() => {
+    setProgressError(save('practiceProgress', practiceProgress) ? '' : '章节练习进度保存失败，请释放本机存储空间后重试。');
+  }, [practiceProgress]);
   useEffect(()=>{if(!device)return;const id=setInterval(()=>void refresh(),2500);return()=>clearInterval(id);},[device]);
   useEffect(()=>{const blur=()=>{if(inputHeld.current.size){for(const n of [...inputHeld.current.keys()])onUp(n);}piano.pedal(false);setPedal(false);};window.addEventListener('blur',blur);return()=>{window.removeEventListener('blur',blur);generation.current++;clearTimeout(loopTimer.current);piano.stop();void midi.disconnect();};},[]);
   const target = useMemo(() => status === 'idle' || (status === 'counting' && !active.length)
     ? groupNotes(lesson.notes.filter(note => matchesHand(note, settings.hands)
       && note.beat >= settings.startBar * lesson.meter && note.beat < (settings.endBar + 1) * lesson.meter))[0] || []
     : lesson.notes.filter(note => active.includes(note.id)), [lesson, active, status, settings.hands, settings.startBar, settings.endBar]);
-  return {settings,setSettings,status,ready,loading,message,setMessage,down,target,hits,beat,position,volume,setVolume,attempts,result,devices,device,midiError,refresh,connectDevice,initialize,previewNotes,start,stop,pause,resume,onDown,onUp,busy,clicking,toggleClick,pedal};
+  return {settings,setSettings,status,ready,loading,message,setMessage,down,target,hits,beat,position,volume,setVolume,attempts,practiceProgress,progressError,result,devices,device,midiError,refresh,connectDevice,initialize,previewNotes,start,stop,pause,resume,onDown,onUp,busy,clicking,toggleClick,pedal};
 }

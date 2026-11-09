@@ -9,6 +9,7 @@ import { DeviceSettings } from './DeviceSettings';
 import { PracticeRoom } from './PracticeRoom';
 import { LessonStudy } from './LessonStudy';
 import { readingFor } from './learning';
+import type { CourseProgress } from './LessonProgress';
 
 const navigation = [
   { id: 'practice', label: '练习室', icon: KeyboardMusic },
@@ -17,6 +18,9 @@ const navigation = [
   { id: 'history', label: '练习记录', icon: History },
 ] as const;
 type Page = typeof navigation[number]['id'] | 'learn';
+const chapters = [...new Set(lessons.map(lesson => lesson.stage))].map(title => ({
+  title, lessons: lessons.filter(lesson => lesson.stage === title),
+}));
 
 export default function App() {
   const [page, setPage] = useState<Page>(() => read('lastLesson', '') ? 'practice' : 'courses');
@@ -24,13 +28,23 @@ export default function App() {
   const [lessonId, setLessonId] = useState(() => read('lastLesson', 'posture'));
   const lesson = [...lessons, ...imports].find(item => item.id === lessonId) ?? lessons[0];
   const studio = useStudio(lesson);
-  const completed = new Set(studio.attempts.filter(attempt => attempt.hit === attempt.total && attempt.wrong === 0
-    && attempt.assisted === false && attempt.fullLesson).map(attempt => attempt.lessonId));
-  const completedCount = lessons.filter(item => completed.has(item.id)).length;
-  const practiced = new Set(studio.attempts.map(attempt => attempt.lessonId));
+  const practiced = new Set(Object.keys(studio.practiceProgress));
+  const played = new Set(Object.entries(studio.practiceProgress).filter(([, level]) => level !== 'practiced').map(([id]) => id));
+  const independent = new Set(Object.entries(studio.practiceProgress).filter(([, level]) => level === 'independent').map(([id]) => id));
+  const independentCount = lessons.filter(item => independent.has(item.id)).length;
   const [learning, setLearning] = useState(loadLearning);
   const [learningError, setLearningError] = useState('');
   const learned = new Set(lessons.filter(item => readingFor(item).checks.every((_, index) => learning[item.id]?.includes(String(index)))).map(item => item.id));
+  const completed = new Set(lessons.filter(item => learned.has(item.id) && played.has(item.id)).map(item => item.id));
+  const completedChapters = chapters.filter(chapter => chapter.lessons.every(item => completed.has(item.id))).length;
+  const chapter = chapters.find(item => item.lessons.some(course => course.id === lesson.id));
+  const courseProgress: CourseProgress | undefined = chapter && {
+    learned: learned.has(lesson.id),
+    played: played.has(lesson.id),
+    chapterCompleted: chapter.lessons.filter(item => completed.has(item.id)).length,
+    chapterTotal: chapter.lessons.length,
+    nextLesson: lessons[lessons.findIndex(item => item.id === lesson.id) + 1],
+  };
   const [importError, setImportError] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
   const importGoal = useRef('');
@@ -64,6 +78,9 @@ export default function App() {
     const next = { ...learning, [lesson.id]: checks };
     if (!save('learning', next)) { setLearningError('学习进度保存失败，请释放本机存储空间后重试。'); return; }
     setLearning(next); setLearningError('');
+  }
+  function nextLesson() {
+    if (courseProgress?.nextLesson) openLearning(courseProgress.nextLesson.id);
   }
   function requestImport(title = '') {
     importGoal.current = title;
@@ -106,24 +123,33 @@ export default function App() {
       </header>
       <main className={page === 'practice' ? 'practice-page' : undefined}>
         {learningError && <p className="error" role="alert">{learningError}</p>}
+        {studio.progressError && <p className="error" role="alert">{studio.progressError}</p>}
         {page === 'practice' && <PracticeRoom key={lesson.id} lesson={lesson} studio={studio}
-          onCourses={() => navigate('courses')} onHistory={() => navigate('history')} onLearning={() => openLearning(lesson.id)} />}
+          onCourses={() => navigate('courses')} onHistory={() => navigate('history')} onLearning={() => openLearning(lesson.id)}
+          progress={courseProgress} onNext={nextLesson} />}
         {page === 'learn' && <LessonStudy key={lesson.id} lesson={lesson} checked={learning[lesson.id] ?? []}
           onCheck={updateLearning} onPractice={() => navigate('practice')} onBack={() => navigate('courses')}
-          onPreview={notes => { void studio.previewNotes(notes); }} video={video} onVideo={setVideoFile} paused={studio.status === 'paused'} />}
+          onPreview={notes => { void studio.previewNotes(notes); }} video={video} onVideo={setVideoFile} paused={studio.status === 'paused'}
+          progress={courseProgress} onNext={nextLesson} />}
         {page === 'courses' && <>
           <div className="page-heading"><div><h1>学习路径</h1><p>从坐姿与用指开始，逐步进入读谱、拍感和双手配合。</p></div>
-            <div className="course-progress"><b>已学习 {learned.size} / {lessons.length} 课</b><progress value={learned.size} max={lessons.length} /></div>
+            <div className="course-progress"><b>已完成 {completed.size} / {lessons.length} 课</b><progress aria-label="全部课程完成进度" value={completed.size} max={lessons.length} /></div>
           </div>
-          <div className="course-overview"><span>已学习 <b>{learned.size}</b></span><span>已练习 <b>{lessons.filter(item => practiced.has(item.id)).length}</b></span><span>独立完成 <b>{completedCount}</b></span></div>
-          {[...new Set(lessons.map(item => item.stage))].map(stage => <section className="course-section" key={stage} aria-label={stage}>
-            <h2>{stage}</h2><div className="library-list">{lessons.filter(item => item.stage === stage).map(item => <article className="lesson-row course-row" key={item.id} aria-label={item.title}>
-              <div className="course-description"><h3>{item.title}</h3><p>{item.subtitle}</p>
-                <div className="course-status"><span data-done={learned.has(item.id)}>{learned.has(item.id) ? '已学习' : '待学习'}</span><span data-done={practiced.has(item.id)}>{practiced.has(item.id) ? '已练习' : '待练习'}</span><span data-done={completed.has(item.id)}>{completed.has(item.id) ? '独立完成' : '待独立完成'}</span></div></div>
+          <div className="course-overview"><span>完成章节 <b>{completedChapters} / {chapters.length}</b></span><span>已学习 <b>{learned.size}</b></span><span>已练习 <b>{lessons.filter(item => practiced.has(item.id)).length}</b></span><span>独立完成 <b>{independentCount}</b></span></div>
+          <p className="course-criteria">每课完成学习自检，并完整弹完本课全部音符，即计入章节进度。练习时可以开启提示。</p>
+          {chapters.map(chapter => {
+            const done = chapter.lessons.filter(item => completed.has(item.id)).length;
+            return <section className="course-section" key={chapter.title} aria-label={chapter.title}>
+            <div className="chapter-heading"><h2>{chapter.title}</h2><span>{done === chapter.lessons.length ? '本章已完成' : '已完成'} {done}/{chapter.lessons.length} 课</span>
+              <progress aria-label={`${chapter.title} 完成进度`} value={done} max={chapter.lessons.length} /></div>
+            <div className="library-list">{chapter.lessons.map(item => <article className="lesson-row course-row" key={item.id} aria-label={item.title}>
+              <div className="course-description"><h3>{item.title}{completed.has(item.id) && <span className="lesson-done">已完成</span>}</h3><p>{item.subtitle}</p>
+                <div className="course-status"><span data-done={learned.has(item.id)}>{learned.has(item.id) ? '已学习' : '待学习'}</span><span data-done={practiced.has(item.id)}>{practiced.has(item.id) ? '已练习' : '待练习'}</span><span data-done={independent.has(item.id)}>{independent.has(item.id) ? '独立完成' : '待独立完成'}</span></div></div>
               <div className="course-actions"><button className="soft-button" aria-label={`学习讲解 · ${item.title}`} onClick={() => openLearning(item.id)}><BookOpen size={15} />学习讲解</button>
                 <button className="text-button" aria-label={`直接练习 · ${item.title}`} onClick={() => selectLesson(item.id)}>直接练习<ArrowRight size={15} /></button></div>
             </article>)}</div>
-          </section>)}
+          </section>;
+          })}
         </>}
         {page === 'songs' && <>
           <div className="page-heading"><div><h1>想弹的歌</h1><p>导入自己的简化谱，分手或分小节练习。</p></div>
@@ -148,7 +174,7 @@ export default function App() {
           <p className="library-note">三首目标曲目需自行导入有权使用的乐谱。</p>
         </>}
         {page === 'history' && <>
-          <div className="page-heading"><div><h1>练习记录</h1><p>本机已记录 {studio.attempts.length} 轮练习，独立完成 {completedCount} 门基础练习。</p></div>
+          <div className="page-heading"><div><h1>练习记录</h1><p>本机已记录 {studio.attempts.length} 轮练习，独立完成 {independentCount} 门基础练习。</p></div>
             <button className="soft-button" onClick={exportHistory}><ArrowDownToLine size={16} />导出记录</button></div>
           {studio.attempts.length ? <div className="history-table"><table><thead><tr>
             {['练习', '模式 / 速度', '命中 / 总音数', '错音', '提前 / 滞后', '时值偏差', '输入', '时间'].map(label => <th key={label} scope="col">{label}</th>)}

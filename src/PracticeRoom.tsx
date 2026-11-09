@@ -7,13 +7,16 @@ import { read, save } from './storage';
 import { matchesHand, type Lesson, type Note } from './model';
 import { PracticeControls } from './PracticeControls';
 import type { useStudio } from './useStudio';
+import { LessonProgress, type CourseProgress } from './LessonProgress';
 
-export function PracticeRoom({ lesson, studio: s, onCourses, onHistory, onLearning }: {
+export function PracticeRoom({ lesson, studio: s, onCourses, onHistory, onLearning, progress, onNext }: {
   lesson: Lesson;
   studio: ReturnType<typeof useStudio>;
   onCourses: () => void;
   onHistory: () => void;
   onLearning: () => void;
+  progress?: CourseProgress;
+  onNext: () => void;
 }) {
   const [guide, setGuide] = useState(false);
   const [browseBar, setBrowseBar] = useState<number | null>(null);
@@ -35,6 +38,11 @@ export function PracticeRoom({ lesson, studio: s, onCourses, onHistory, onLearni
     : preview ? inspected[0].beat : targets[0]?.beat;
   const canPlay = selected.length > 0;
   const result = s.result;
+  const resultSummary = result && <section className="result-strip" aria-label="本轮结果">
+    <b>本轮结果</b><span>命中 {result.hit}/{result.total}</span><span>错音 {result.wrong}</span>
+    {result.mode === 'rhythm' && <><span>提前 {result.early} · 滞后 {result.late}</span><span>时值偏差 {result.durationErrors}</span></>}
+    <button className="text-button" onClick={onHistory}>查看记录<ArrowRight size={15} /></button>
+  </section>;
   const playback = useRef({ studio: s, canPlay });
   playback.current = { studio: s, canPlay };
   useEffect(() => { setInspected([]); }, [s.busy, browseBar, settings.startBar, settings.endBar, settings.hands, settings.hints]);
@@ -78,12 +86,13 @@ export function PracticeRoom({ lesson, studio: s, onCourses, onHistory, onLearni
               s.setSettings(previous => ({ ...previous, startBar, endBar: Math.max(startBar, previous.endBar) }));
             }} />
           <div className="live-feedback">
-            <div role="status">{result ? <CheckCircle2 size={17} /> : <Music2 size={17} />}
+            {result && s.status === 'finished' && progress ? <LessonProgress compact lesson={lesson} progress={progress}
+              onNext={onNext} onCourses={onCourses} onStudy={onLearning}>{resultSummary}</LessonProgress> : <><div role="status">{result ? <CheckCircle2 size={17} /> : <Music2 size={17} />}
               {canPlay ? s.message : '当前片段没有所选声部的音符。请切换声部或小节。'}
             </div>
             <div className="beat-counter" aria-label="当前节拍">
               {Array.from({ length: lesson.meter }, (_, i) => <span key={i} className={s.beat === i ? 'on' : ''}>{i + 1}</span>)}
-            </div>
+            </div></>}
           </div>
           <section className="keyboard-deck" aria-label="屏幕琴键">
             <div className="keyboard-heading"><h2><KeyboardMusic size={17} />屏幕琴键</h2>
@@ -105,11 +114,7 @@ export function PracticeRoom({ lesson, studio: s, onCourses, onHistory, onLearni
               : <Keyboard down={s.down} target={targets} onDown={note => s.onDown(note)} onUp={s.onUp}
                 low={low} high={high} />}
           </section>
-          {result && <section className="result-strip" aria-label="本轮结果">
-            <b>本轮结果</b><span>命中 {result.hit}/{result.total}</span><span>错音 {result.wrong}</span>
-            {result.mode === 'rhythm' && <><span>提前 {result.early} · 滞后 {result.late}</span><span>时值偏差 {result.durationErrors}</span></>}
-            <button className="text-button" onClick={onHistory}>查看记录<ArrowRight size={15} /></button>
-          </section>}
+          {(!progress || s.status !== 'finished') && resultSummary}
         </div>
         {guide && <aside id="lesson-guide" className="guide">
           <div className="panel-title"><h2><BookOpen size={17} />本课要点</h2><button className="icon-button" aria-label="收起本课要点" onClick={() => setGuide(false)}><X size={17} /></button></div>

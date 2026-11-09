@@ -6,11 +6,13 @@ import { HandKeyboard } from './HandKeyboard';
 import { Keyboard } from './Keyboard';
 import { Fingering } from './components';
 import { Score } from './Score';
+import { LessonProgress, type CourseProgress } from './LessonProgress';
 
-export function LessonStudy({ lesson, checked, onCheck, onPractice, onBack, onPreview, video, onVideo, paused }: {
+export function LessonStudy({ lesson, checked, onCheck, onPractice, onBack, onPreview, video, onVideo, paused, progress, onNext }: {
   lesson: Lesson; checked: string[]; onCheck: (checks: string[]) => void;
   onPractice: () => void; onBack: () => void; onPreview: (notes: Note[]) => void;
   video: string; onVideo: (file: File) => void; paused: boolean;
+  progress?: CourseProgress; onNext: () => void;
 }) {
   const reading = useMemo(() => readingFor(lesson), [lesson]);
   const [section, setSection] = useState(0);
@@ -69,6 +71,7 @@ export function LessonStudy({ lesson, checked, onCheck, onPractice, onBack, onPr
         <div className="study-completion" role="status">{complete ? <><Check size={15} />自检完成，已记录学习进度</> : `${checked.length} / ${reading.checks.length} 项已确认`}</div>
         <button className="primary-button" onClick={onPractice}>{paused ? '返回当前练习' : '开始本节练习'}<ArrowRight size={15} /></button>
         <p className="study-check-note">练习室会记录音高、节奏与时值。姿势请结合示范自行对照。</p>
+        {progress && <LessonProgress lesson={lesson} progress={progress} onNext={onNext} onCourses={onBack} />}
       </aside>
     </div>
   </div>;
