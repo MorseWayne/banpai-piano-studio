@@ -1,5 +1,31 @@
 import { expect, test } from '@playwright/test';
 
+test('the pulse and fingering chapter advances from two keys to a scored phrase and its eight-bar piece', async ({ page }) => {
+  await page.goto('/');
+  const picker = page.getByRole('button', { name: /^章节目录，当前为/ });
+  const directory = page.getByRole('dialog', { name: '章节目录' });
+  await picker.click();
+  await directory.getByRole('button', { name: '专项 · 节拍与换指' }).click();
+  await directory.getByRole('button', { name: '钟摆走两格' }).click();
+  await page.getByRole('button', { name: '开始练习' }).click();
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeEnabled();
+  for (const pitch of ['C4', 'D4', 'C4', 'D4', 'C4', 'D4', 'D4', 'C4', 'D4', 'C4', 'D4', 'C4']) {
+    await page.getByRole('button', { name: pitch + ' 琴键', exact: true }).click();
+  }
+  await expect(page.getByRole('region', { name: '本轮结果' })).toContainText('命中 12/12');
+  await page.getByRole('button', { name: '下一练习 · 三个键上转个弯' }).click();
+  await expect(page.getByRole('heading', { name: '三个键上转个弯' })).toBeVisible();
+  await picker.click();
+  await directory.getByRole('button', { name: '专项小曲《雨过屋檐》' }).click();
+  await page.getByRole('button', { name: '练习片段' }).click();
+  await expect(page.getByLabel('结束小节')).toHaveValue('7');
+  await page.getByLabel('起始小节').selectOption({ label: '5' });
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: /试听第 5 小节 · 第 2.5 拍 · 右手 E4/ })).toBeVisible();
+  await page.getByRole('button', { name: '听示范' }).click();
+  await expect(page.locator('.score-playhead')).toHaveAttribute('data-state', 'playing', { timeout: 9000 });
+});
+
 test('the foundation phrase leads into interval reading and its playable score', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: '学习路径', exact: true }).click();
@@ -23,7 +49,7 @@ test('the first visit starts with posture and learning progress persists separat
   await page.getByRole('navigation', { name: '主导航' }).getByRole('button', { name: '学习路径' }).click();
   await expect(page.getByRole('heading', { name: '学习路径', exact: true })).toBeVisible();
   await expect(page.getByRole('article').first()).toHaveAttribute('aria-label', '坐稳，放松地弹出第一个音');
-  await expect(page.getByRole('article')).toHaveCount(23);
+  await expect(page.getByRole('article')).toHaveCount(32);
   await page.getByRole('button', { name: /学习讲解 · 坐稳/ }).click();
   await expect(page.getByRole('article', { name: '课程讲解' })).toBeVisible();
   await page.getByRole('button', { name: '下一步' }).click();

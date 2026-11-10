@@ -16,6 +16,7 @@ const berkleePop = {
 };
 
 export const chapterNames = {
+  pulseAndFingers: '专项 · 节拍与换指',
   scales: '07 · 音程、调式与换指',
   reading: '08 · 节奏、听辨与视奏',
   harmony: '09 · 和弦构造与连接',
@@ -29,7 +30,7 @@ export const chapterNames = {
 export const phases = [
   {
     title: '入门触键', goal: '从中央 C 出发，独立读出并弹完第一句双手旋律。',
-    chapters: ['01 · 坐姿与触键', '02 · 指法与手位', '03 · 读谱与拍感', '04 · 双手合作', '05 · 双手独立', '06 · 乐句准备'],
+    chapters: ['01 · 坐姿与触键', '02 · 指法与手位', '03 · 读谱与拍感', chapterNames.pulseAndFingers, '04 · 双手合作', '05 · 双手独立', '06 · 乐句准备'],
     routine: '先找到中央 C，加一根手指练两音问答，再用三个音弹出四小节《窗边的回声》。隔天换一个结尾。熟悉五指和低音后，逐步让自己的左手接过伴奏。',
     project: '关掉目标音提示，数四拍起奏，弹完《窗边的回声》的双手版。再从第 3 小节单独起奏，换低音时右手仍能唱出问句。',
     projectLesson: 'echo-duet',

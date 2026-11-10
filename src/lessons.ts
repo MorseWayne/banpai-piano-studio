@@ -1,6 +1,7 @@
 import type { Lesson, Note, Hand } from './model';
 import { repertoire } from './repertoire';
 import { beginnerStudies } from './beginnerStudies';
+import { pulseAndFingerStudies } from './pulseAndFingerStudies';
 function line(pitches: number[], durations: number[], hand: Hand, fingers: number[]): Note[] {
   let beat = 0; return pitches.map((midi,i) => { const note = { id: `${hand}-${i}`, midi, beat, duration: durations[i], hand, finger: fingers[i] }; beat += durations[i]; return note; });
 }
@@ -58,11 +59,12 @@ const order = [
   'posture', 'two-keys', 'three-echo', 'echo-repeat', 'echo-song',
   'echo-recall', 'upper-neighbours', 'fingers-right', 'left-echo', 'fingers-left',
   'pulse', 'right', 'left', 'silent-beat',
+  ...pulseAndFingerStudies.map(lesson => lesson.id),
   'alternate', 'pass-the-phrase', 'landing', 'together',
   'hold-two', 'bass-lantern', 'independence',
   'phrase', 'echo-duet',
 ];
-const beginnerPool = [...foundations, ...existingLessons, ...beginnerStudies];
+const beginnerPool = [...foundations, ...existingLessons, ...beginnerStudies, ...pulseAndFingerStudies];
 const introductoryLessons: Lesson[] = order.map(id => {
   const lesson = beginnerPool.find(item => item.id === id)!;
   const stage = ['pulse', 'right', 'left'].includes(id) ? '03 · 读谱与拍感'
