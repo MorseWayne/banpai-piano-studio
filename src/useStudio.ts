@@ -4,6 +4,7 @@ import { Judge, decodeMidi, groupNotes, matchesHand, type Attempt, type Hands, t
 import { loadAttempts, loadPracticeProgress, save } from './storage';
 import { mergePracticeProgress } from './progress';
 import * as midi from './midi';
+import { inputAudioTime, inputBeat } from './midiTiming';
 export interface Settings { bpm:number; hands:Hands; mode:Mode; metronome:boolean; clickVolume:number; subdivisions:boolean; countIn:number; loop:boolean; accompaniment:boolean; startBar:number; endBar:number; offset:number; hints:boolean }
 interface Run { lesson:Lesson; settings:Settings; judge:Judge; notes:Note[]; all:Note[]; start:number; length:number; startBeat:number; resumeBeat:number; demo:boolean; scheduled:number; input:Set<string>; assisted:boolean }
 export function useStudio(lesson:Lesson, isImported: boolean) {
@@ -22,7 +23,8 @@ export function useStudio(lesson:Lesson, isImported: boolean) {
   const pausedRun = useRef<{ run: Run; beat: number } | null>(null);
   const [clicking,setClicking]=useState(false);const [pedal,setPedal]=useState(false);const settingsRef=useRef(settings),lessonRef=useRef(lesson);settingsRef.current=settings;lessonRef.current=lesson;currentDevice.current=device;
   const startRef=useRef<(demo?:boolean)=>Promise<void>>(async()=>{}),generation=useRef(0),loopTimer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
-  const callbackRef=useRef<(data:number[])=>void>(()=>{});
+  const callbackRef=useRef<(message:midi.MidiMessage)=>void>(()=>{});
+  const midiSince = useRef(0), deviceRequest = useRef(0);
   const busy=status==='counting'||status==='running'||status==='demo';
   async function initialize() { setLoading(true);try{await piano.init();setReady(true);return true;}catch(e){setMessage(String(e));return false;}finally{setLoading(false);} }
   async function previewNotes(notes: Note[]) {
@@ -31,11 +33,19 @@ export function useStudio(lesson:Lesson, isImported: boolean) {
     const at = piano.now;
     for (const note of notes) piano.play(note.midi, 80, at, Math.min(1.5, note.duration * 60 / settingsRef.current.bpm));
   }
-  function stop(clearMessage=true) {generation.current++;clearTimeout(loopTimer.current);run.current=null;pausedRun.current=null;standalone.current=null;setClicking(false);piano.stop();inputHeld.current.clear();setDown(new Set());setPedal(false);setStatus('idle');setBeat(-1);setActive([]);if(clearMessage)setMessage('已停止，可以重新开始。');}
+  function stop(clearMessage=true) {
+    midiSince.current = performance.now();
+    generation.current++; clearTimeout(loopTimer.current);
+    run.current=null; pausedRun.current=null; standalone.current=null;
+    setClicking(false); piano.stop(); inputHeld.current.clear(); setDown(new Set()); setPedal(false);
+    setStatus('idle'); setBeat(-1); setActive([]);
+    if(clearMessage)setMessage('已停止，可以重新开始。');
+  }
   function pause() {
     const current = run.current;
     if (!current) { if (!pausedRun.current) stop(false); return; }
     generation.current++;
+    midiSince.current = performance.now();
     clearTimeout(loopTimer.current);
     const beat = current.settings.mode === 'wait' && !current.demo
       ? current.judge.current[0]?.beat ?? current.length
@@ -70,7 +80,7 @@ export function useStudio(lesson:Lesson, isImported: boolean) {
     if (!saved) return;
     const version = generation.current;
     if (!await initialize() || version !== generation.current || pausedRun.current !== saved) return;
-    piano.stop(); inputHeld.current.clear(); setDown(new Set());
+    piano.stop(); inputHeld.current.clear(); setDown(new Set()); setPedal(false);
     const current = saved.run;
     if (saved.beat >= current.length) {
       pausedRun.current = null;
@@ -86,12 +96,14 @@ export function useStudio(lesson:Lesson, isImported: boolean) {
     for (let index = 0; index < countIn; index++) {
       piano.click(piano.now + .12 + index * 60 / current.settings.bpm, index % current.lesson.meter === 0, current.settings.clickVolume);
     }
+    midiSince.current = performance.now();
     pausedRun.current = null; run.current = current;
     setStatus(wait ? 'running' : 'counting');
     setMessage(wait ? '从刚才的音继续。' : '听完预备拍，从暂停位置继续。');
     if (!wait) scheduleAudio(current, saved.beat);
   }
   function finish(r:Run) {
+    midiSince.current = performance.now();
     r.judge.finish(r.length);run.current=null;piano.stop();inputHeld.current.clear();setDown(new Set());setStatus('finished');setActive([]);setBeat(-1);
     if(!r.demo&&r.input.size){const a:Attempt={id:crypto.randomUUID(),date:new Date().toISOString(),lessonId:r.lesson.id,title:r.lesson.title,bpm:r.settings.bpm,mode:r.settings.mode,hands:r.settings.hands,hit:r.judge.hits.size,total:r.notes.length,wrong:r.judge.wrong,early:r.judge.early,late:r.judge.late,durationErrors:r.judge.durationErrors,input:[...r.input].join(' / '),assisted:r.assisted,fullLesson:r.notes.length===r.lesson.notes.length};
       setResult(a);setAttempts(prev=>{const next=[a,...prev].slice(0,200);if(!save('attempts',next))setMessage('本机存储空间不足，本次记录尚未保存。');return next;});
@@ -109,28 +121,75 @@ export function useStudio(lesson:Lesson, isImported: boolean) {
     if(!selected.length){setMessage('这个片段没有所选声部，请切换左右手或小节范围。');return;}
     const wait=!demo&&s.mode==='wait';
     const startTime=piano.now+.12+(wait?0:s.countIn*l.meter*60/s.bpm);
+    // Discard any live keys played while audio initialization was pending.
+    if (inputHeld.current.size || piano.sustain) {
+      piano.stop(); inputHeld.current.clear(); setDown(new Set()); setPedal(false);
+    }
+    midiSince.current = performance.now();
     const r:Run={lesson:l,settings:s,notes:selected,all,judge:new Judge(selected,s.mode),start:startTime,length,startBeat,resumeBeat:0,demo,scheduled:-s.countIn*l.meter,input:new Set(),assisted:s.hints};run.current=r;
     setHits(new Set());setPosition(startBeat);setStatus(wait?'running':'counting');setMessage(demo?'听示范，观察谱面与指法。':wait?'按谱弹奏，弹对后进入下一组。':'先听预备拍。拍子开始后，保持连续。');
     setActive(wait?r.judge.current.map(n=>n.id):[]);
     if(!wait) scheduleAudio(r, 0);
   }
   startRef.current=start;
-  function onDown(n:number,source='屏幕琴键',velocity=90) {
+  function onDown(n:number,source='屏幕琴键',velocity=90,at=piano.now) {
     if(inputHeld.current.has(n))return;
     inputHeld.current.set(n,source);setDown(new Set(inputHeld.current.keys()));
     if(!ready){void initialize().then(ok=>{if(ok&&inputHeld.current.has(n))piano.play(n,velocity,piano.now,undefined,true);});return;}
     piano.play(n,velocity,piano.now,undefined,true);
     const r=run.current;if(!r||r.demo||(r.settings.mode==='wait'&&!r.judge.current.length))return;
-    const currentBeat=(piano.now-r.start)*r.settings.bpm/60-r.settings.offset/1000*r.settings.bpm/60;
+    const currentBeat=inputBeat(at,r.start,r.settings.bpm,r.settings.offset);
     if(r.settings.mode==='rhythm'&&(currentBeat<r.resumeBeat-.15||currentBeat>=r.length+.4))return;
     r.assisted ||= settingsRef.current.hints;r.input.add(source);const verdict=r.judge.on(n,currentBeat);setHits(new Set(r.judge.hits));
     if(verdict==='wrong')setMessage(r.settings.mode==='wait'?'音高有偏差，请看谱再试一次。':'继续跟着拍子走，结束后再回顾。');
     if(r.settings.mode==='wait') {setActive(r.judge.current.map(n=>n.id));if(r.judge.current.length){setPosition(r.startBeat+r.judge.current[0].beat);if(verdict==='correct')setMessage('找到了。松开琴键，继续下一组。');}else setMessage('最后一个音找到了。自然松开琴键，完成这一轮。');}
   }
-  function onUp(n:number) {inputHeld.current.delete(n);setDown(new Set(inputHeld.current.keys()));piano.off(n);const r=run.current;if(r&&!r.demo){r.judge.off(n,(piano.now-r.start)*r.settings.bpm/60-r.settings.offset/1000*r.settings.bpm/60);if(r.settings.mode==='wait'&&!r.judge.current.length&&!inputHeld.current.size)finish(r);}}
-  callbackRef.current=(data)=>{const event=decodeMidi(data);if(!event)return;if(event.type==='on')onDown(event.note,'MIDI',event.value);else if(event.type==='off')onUp(event.note);else if(event.type==='sustain'){piano.pedal(event.value>=64);setPedal(event.value>=64);}else stop();};
-  async function refresh(){try{const next=await midi.ports();setDevices(next);setMidiError('');const d=currentDevice.current;if(d&&!next.some(p=>p.id===d.id)){await midi.disconnect();setDevice(null);stop(false);setMessage('MIDI 键盘已断开，练习已暂停。重新连接后再开始。');}}catch(e){setMidiError(String(e));}}
-  async function connectDevice(id:string){try{stop(false);await midi.disconnect();setDevice(null);if(!id)return;if(!await initialize())return;await midi.connect(id,data=>callbackRef.current(data));const port=devices.find(d=>d.id===id);setDevice(port||{id,name:'MIDI 键盘'});setMidiError('');setMessage('键盘已连接。按任意键试听。');}catch(e){setMidiError(String(e));}}
+  function releaseNote(n: number, at = piano.now) {
+    inputHeld.current.delete(n); setDown(new Set(inputHeld.current.keys())); piano.off(n);
+    const r=run.current;
+    if (!r || r.demo) return;
+    r.judge.off(n,inputBeat(at,r.start,r.settings.bpm,r.settings.offset));
+    if(r.settings.mode==='wait'&&!r.judge.current.length&&!inputHeld.current.size)finish(r);
+  }
+  // The UI piano passes extra event details after the pitch.
+  function onUp(n: number) { releaseNote(n); }
+  callbackRef.current = message => {
+    if (message.timeMs < midiSince.current) return;
+    const event = decodeMidi(message.data);
+    if (!event) return;
+    const at = inputAudioTime(message.timeMs, performance.now(), piano.now);
+    if (event.type === 'on') onDown(event.note, 'MIDI', event.value, at);
+    else if (event.type === 'off') releaseNote(event.note, at);
+    else if (event.type === 'sustain') { piano.pedal(event.value >= 64); setPedal(event.value >= 64); }
+    else stop();
+  };
+  async function refresh() {
+    const request = deviceRequest.current;
+    try {
+      const next = await midi.ports();
+      if (request !== deviceRequest.current) return;
+      setDevices(next); setMidiError('');
+      const d = currentDevice.current;
+      if (d && !next.some(p => p.id === d.id)) {
+        setDevice(null); stop(false);
+        setMessage('MIDI 键盘已断开，练习已暂停。重新连接后再开始。');
+        await midi.disconnect();
+      }
+    } catch (e) { if (request === deviceRequest.current) setMidiError(String(e)); }
+  }
+  async function connectDevice(id:string) {
+    const request = ++deviceRequest.current;
+    stop(false); setDevice(null); setMidiError('');
+    try {
+      await midi.disconnect();
+      if (!id || request !== deviceRequest.current) return;
+      if (!await initialize() || request !== deviceRequest.current) return;
+      await midi.connect(id, message => callbackRef.current(message));
+      if (request !== deviceRequest.current) return;
+      setDevice(devices.find(d => d.id === id) || { id, name: 'MIDI 键盘' });
+      setMessage('键盘已连接。按任意键试听。');
+    } catch (e) { if (request === deviceRequest.current) setMidiError(String(e)); }
+  }
   async function toggleClick(){if(clicking){standalone.current=null;piano.stop();setClicking(false);setBeat(-1);return;}if(!await initialize())return;stop(false);standalone.current={next:piano.now+.1,index:0};setClicking(true);}
   useEffect(()=>{const interval=setInterval(()=>{
     const free=standalone.current,s=settingsRef.current,l=lessonRef.current;
@@ -157,7 +216,7 @@ export function useStudio(lesson:Lesson, isImported: boolean) {
     setProgressError(save('practiceProgress', practiceProgress) ? '' : '章节练习进度保存失败，请释放本机存储空间后重试。');
   }, [practiceProgress]);
   useEffect(()=>{if(!device)return;const id=setInterval(()=>void refresh(),2500);return()=>clearInterval(id);},[device]);
-  useEffect(()=>{const blur=()=>{if(inputHeld.current.size){for(const n of [...inputHeld.current.keys()])onUp(n);}piano.pedal(false);setPedal(false);};window.addEventListener('blur',blur);return()=>{window.removeEventListener('blur',blur);generation.current++;clearTimeout(loopTimer.current);piano.stop();void midi.disconnect();};},[]);
+  useEffect(()=>{const blur=()=>{if(inputHeld.current.size){for(const n of [...inputHeld.current.keys()])onUp(n);}piano.pedal(false);setPedal(false);};window.addEventListener('blur',blur);return()=>{window.removeEventListener('blur',blur);generation.current++;deviceRequest.current++;clearTimeout(loopTimer.current);piano.stop();void midi.disconnect();};},[]);
   const target = useMemo(() => status === 'idle' || (status === 'counting' && !active.length)
     ? groupNotes(lesson.notes.filter(note => matchesHand(note, settings.hands)
       && note.beat >= settings.startBar * lesson.meter && note.beat < (settings.endBar + 1) * lesson.meter))[0] || []

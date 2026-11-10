@@ -75,19 +75,27 @@ test('rhythm mode resumes at the paused cursor after a fresh count-in', async ({
   await page.getByRole('slider', { name: '练习速度' }).fill('160');
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: '开始练习' }).click();
-  const cursor = page.locator('.score-stage img');
-  await expect(cursor).toBeVisible();
-  const start = (await cursor.boundingBox())!.x;
-  await expect.poll(async () => (await cursor.boundingBox())?.x).toBeGreaterThan(start + 8);
+  // Opening or closing the notes panel makes OSMD re-layout and briefly hide the cursor.
+  const cursorX = () => page.locator('.score-stage').evaluate(stage => {
+    const box = stage.querySelector('img')?.getBoundingClientRect();
+    return box?.width ? box.x : 0;
+  });
+  const visibleX = async () => {
+    let x = 0;
+    await expect.poll(async () => x = await cursorX()).toBeGreaterThan(0);
+    return x;
+  };
+  const start = await visibleX();
+  await expect.poll(cursorX).toBeGreaterThan(start + 8);
   await page.getByRole('button', { name: '本课要点', exact: true }).click();
   await page.getByRole('button', { name: '收起本课要点' }).click();
   await expect(page.getByRole('button', { name: '继续练习' })).toBeEnabled();
-  const paused = (await cursor.boundingBox())!.x;
+  const paused = await visibleX();
   await page.getByRole('button', { name: '继续练习' }).click();
   await expect(page.getByRole('status')).toContainText('听完预备拍');
   await page.waitForTimeout(700);
-  expect((await cursor.boundingBox())!.x).toBeCloseTo(paused, 0);
-  await expect.poll(async () => (await cursor.boundingBox())?.x).toBeGreaterThan(paused + 5);
+  expect(await cursorX()).toBeCloseTo(paused, 0);
+  await expect.poll(cursorX).toBeGreaterThan(paused + 5);
   await page.getByRole('button', { name: '停止', exact: true }).click();
 });
 
