@@ -1,8 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import { Judge, type Note } from './model';
-import { inputAudioTime, inputBeat, NativeMidiClock, sampleNativeClock } from './midiTiming';
+import { ClockContinuity, inputAudioTime, inputBeat, MidiDeliveryWindow, NativeMidiClock, sampleNativeClock } from './midiTiming';
 
 describe('MIDI event clocks', () => {
+  it('detects a suspended clock and a missed wake, once per interruption', () => {
+    const clock = new ClockContinuity(0);
+    expect(clock.observe(25, true)).toBeUndefined();
+    expect(clock.observe(50, false)).toBe('interrupted');
+    expect(clock.observe(25000, false)).toBeUndefined();
+    expect(clock.observe(40000, true)).toBe('restored');
+    expect(clock.observe(40001, true)).toBeUndefined();
+    expect(clock.observe(95000, true)).toBe('gap');
+    expect(clock.observe(95010, true)).toBeUndefined();
+  });
+
+  it('reports delivery spread and output latency separately for the latest 128 timestamped inputs', () => {
+    const samples = new MidiDeliveryWindow();
+    expect(samples.measure(null)).toBeNull();
+    for (let i = 0; i < 129; i++) samples.record(i);
+    samples.record(NaN);
+    expect(samples.measure(17)).toMatchObject({ count: 128, medianMs: 64, p95Ms: 122, jitterMs: 58, outputMs: 17 });
+  });
   it('uses the shortest IPC round trip to align independent time origins', async () => {
     const pageTimes = [100, 160, 200, 204, 300, 318];
     const hostTimes = [6030000, 6102000, 6201000];

@@ -147,7 +147,7 @@ describe('practice rounds', () => {
     audio.now = 200;
     engine.resume();
     expect(audio.click).toHaveBeenCalledTimes(8);
-    expect(audio.play).toHaveBeenCalledExactlyOnceWith(48, 60, 204.12, 2.5 * .94);
+    expect(audio.play).toHaveBeenCalledExactlyOnceWith(48, 60, 204.12, 4 * .94 - 1.5);
     audio.now = 204.2;
     engine.tick();
     expect(engine.getSnapshot().status).toBe('running');
@@ -174,5 +174,38 @@ describe('practice rounds', () => {
     engine.start(together, { ...options, mode: 'rhythm' });
     audio.now = 120;
     expect(engine.tick()).toMatchObject({ demo: false, loop: true, attempt: null });
+  });
+
+  it('resumes bar five from the last observed beat after a clock jump and restarts the excerpt at a new tempo', () => {
+    const { engine, audio } = setup();
+    const lesson = { ...independence, beats: 20, notes: independence.notes.filter(note => note.beat < 4)
+      .map(note => ({ ...note, beat: note.beat + 16 })) };
+    const options: Settings = { ...settings, mode: 'rhythm', hands: 'right', startBar: 4, endBar: 4, loop: true };
+    engine.start(lesson, options);
+    expect(engine.getSnapshot().position).toBe(16);
+    engine.press(60, 104.12, 'MIDI', false);
+    engine.release(60, 105.12);
+    audio.now = 105.12;
+    engine.tick();
+    expect(engine.getSnapshot().position).toBeCloseTo(17);
+    audio.now += 600;
+    engine.pause(engine.getSnapshot().position);
+    expect(engine.tick()).toBeUndefined();
+    expect(engine.getSnapshot()).toMatchObject({ status: 'paused', position: 17 });
+    engine.resume();
+    const restart = audio.now + .12 + 4;
+    expect(audio.play).toHaveBeenLastCalledWith(48, 60, restart, 4 * .94 - 1);
+    for (const [i, pitch] of [62, 64, 62].entries()) {
+      audio.now = restart + i;
+      engine.tick();
+      expect(engine.getSnapshot().position).toBeCloseTo(17 + i);
+      engine.press(pitch, audio.now, 'MIDI', false);
+      engine.release(pitch, audio.now + 1);
+    }
+    audio.now = restart + 3.5;
+    expect(engine.tick()).toMatchObject({ loop: true, attempt: { hit: 4, early: 0, late: 0, durationErrors: 0 } });
+    engine.start(lesson, { ...options, bpm: 120 });
+    expect(engine.getSnapshot()).toMatchObject({ position: 16, status: 'counting' });
+    expect(audio.play).toHaveBeenLastCalledWith(48, 60, audio.now + .12 + 2, 4 * .94 / 2);
   });
 });

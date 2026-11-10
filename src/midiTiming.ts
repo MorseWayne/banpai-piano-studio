@@ -43,3 +43,42 @@ export function inputAudioTime(eventMs: number, receivedMs: number, audioNow: nu
 export function inputBeat(audioTime: number, start: number, bpm: number, offsetMs: number) {
   return (audioTime - start - offsetMs / 1000) * bpm / 60;
 }
+
+// A frozen WebView may deliver neither audio nor lifecycle events until wake.
+// A long scheduling gap also makes the last displayed beat the safe resume point.
+export class ClockContinuity {
+  private available = true;
+  constructor(private lastWallMs: number) {}
+
+  observe(wallMs: number, available: boolean) {
+    const gap = wallMs - this.lastWallMs;
+    const wasAvailable = this.available;
+    this.lastWallMs = wallMs;
+    this.available = available;
+    if (available !== wasAvailable) return available ? 'restored' : 'interrupted';
+    if (available && gap >= 2000) return 'gap';
+  }
+}
+
+export interface TimingMeasurement {
+  count: number; medianMs: number; p95Ms: number; jitterMs: number;
+  outputMs: number | null; date: string;
+}
+
+export class MidiDeliveryWindow {
+  private delays: number[] = [];
+
+  record(delayMs: number) {
+    if (!Number.isFinite(delayMs) || delayMs < 0) return;
+    if (this.delays.length === 128) this.delays.shift();
+    this.delays.push(delayMs);
+  }
+
+  measure(outputMs: number | null): TimingMeasurement | null {
+    if (!this.delays.length) return null;
+    const sorted = [...this.delays].sort((a, b) => a - b);
+    const percentile = (fraction: number) => sorted[Math.ceil(fraction * sorted.length) - 1];
+    const medianMs = percentile(.5), p95Ms = percentile(.95);
+    return { count: sorted.length, medianMs, p95Ms, jitterMs: p95Ms - medianMs, outputMs, date: new Date().toISOString() };
+  }
+}

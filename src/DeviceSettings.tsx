@@ -48,11 +48,22 @@ export function DeviceSettings({ studio: s }: { studio: ReturnType<typeof useStu
               <button className="text-button" onClick={() => s.stop()}>停止所有声音</button></div>
           </section>
           <details><summary>输入延迟补偿</summary>
-            <p>若跟拍反馈持续滞后，可增加补偿值。设备报告的基础延迟为{s.ready ? ` ${piano.latency} ms` : '启用声音后可见'}。</p>
+            <p>若跟拍反馈持续滞后，可增加补偿值。补偿值保存在本机，当前用于{s.device?.name ?? '屏幕琴键'}。</p>
             <label className="slider-field">时间补偿<span>{settings.offset} ms</span>
-              <input type="range" min="-200" max="200" step="5" value={settings.offset} disabled={s.busy}
-                onChange={e => s.setSettings(previous => ({ ...previous, offset: Number(e.target.value) }))} />
+              <input type="range" min="-200" max="200" step="5" value={settings.offset} disabled={s.busy || s.status === 'paused'}
+                onChange={e => s.setOffset(Number(e.target.value))} />
             </label>
+            <p>音频系统报告的基础与输出延迟合计{s.ready ? `约 ${piano.latency} ms` : '在启用声音后可见'}。</p>
+            {s.device && <>
+              <button className="soft-button" onClick={s.measureTiming}>记录延迟测量</button>
+              <p>弹奏后可记录最近 128 次带时间戳的按键与松键事件。输入传递延迟从 MIDI 事件时刻算到应用收到消息，抖动取 P95 与中位数之差。</p>
+              {s.measurement && <p aria-label="设备延迟测量">
+                {new Date(s.measurement.date).toLocaleString()} · {s.measurement.count} 个样本<br />
+                输入中位数 {s.measurement.medianMs.toFixed(1)} ms · P95 {s.measurement.p95Ms.toFixed(1)} ms · 抖动 {s.measurement.jitterMs.toFixed(1)} ms<br />
+                音频系统报告的输出延迟 {s.measurement.outputMs === null ? '未知' : `${s.measurement.outputMs.toFixed(1)} ms`}
+              </p>}
+            </>}
+            {s.timingNotice && <p role="status">{s.timingNotice}</p>}
           </details>
         </Dialog.Content>
       </Dialog.Portal>

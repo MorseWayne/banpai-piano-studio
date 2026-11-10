@@ -1,4 +1,4 @@
-import { Judge, matchesHand, type Attempt, type Hands, type Lesson, type Mode, type Note } from './model';
+import { Judge, matchesHand, soundingEndBeat, type Attempt, type Hands, type Lesson, type Mode, type Note } from './model';
 import { inputBeat } from './midiTiming';
 
 export interface Settings {
@@ -102,11 +102,11 @@ export class PracticeEngine {
     }
     if (!wait) {
       for (const note of round.all) {
-        const end = note.beat + note.duration;
+        const end = soundingEndBeat(note);
         if (end <= resumeBeat) continue;
         if (!round.demo && !(settings.accompaniment && settings.hands !== 'both' && !matchesHand(note, settings.hands))) continue;
         const onset = Math.max(note.beat, resumeBeat);
-        this.playback.play(note.midi, note.hand === 'left' ? 60 : 85, round.startTime + onset * seconds, (end - onset) * seconds * .94);
+        this.playback.play(note.midi, note.hand === 'left' ? 60 : 85, round.startTime + onset * seconds, (end - onset) * seconds);
       }
     }
     this.publish({
@@ -117,10 +117,10 @@ export class PracticeEngine {
     });
   }
 
-  pause() {
+  pause(position?: number) {
     const r = this.round;
     if (!r || !this.busy) return false;
-    const t = inputBeat(this.playback.now, r.startTime, r.settings.bpm, 0);
+    const t = position === undefined ? inputBeat(this.playback.now, r.startTime, r.settings.bpm, 0) : position - r.startBeat;
     r.resumeBeat = r.wait ? r.judge.current[0]?.beat ?? r.length : Math.max(r.resumeBeat, Math.min(r.length, t));
     r.assisted = true;
     // A pause releases the keys without grading the interrupted note lengths.
@@ -147,14 +147,14 @@ export class PracticeEngine {
     this.publish(resetPosition ? initialSnapshot() : { status: 'idle', beat: -1, active: [] });
   }
 
-  press(pitch: number, at: number, source: string, hints: boolean): string | undefined {
+  press(pitch: number, at: number, source: string, hints: boolean, offsetMs?: number): string | undefined {
     const r = this.round;
     if (!r || !this.busy || r.demo || r.judge.held.has(pitch)) return;
     if (r.wait && !r.judge.current.length) {
       r.judge.held.add(pitch);
       return;
     }
-    const beat = inputBeat(at, r.startTime, r.settings.bpm, r.settings.offset);
+    const beat = inputBeat(at, r.startTime, r.settings.bpm, offsetMs ?? r.settings.offset);
     if (!r.wait && (beat < r.resumeBeat - .15 || beat >= r.length + .4)) return;
     r.assisted ||= hints;
     r.sources.add(source);
@@ -168,10 +168,10 @@ export class PracticeEngine {
     return next.length ? '找到了。松开琴键，继续下一组。' : '最后一个音找到了。自然松开琴键，完成这一轮。';
   }
 
-  release(pitch: number, at: number): Completion | undefined {
+  release(pitch: number, at: number, offsetMs?: number): Completion | undefined {
     const r = this.round;
     if (!r || !this.busy || r.demo) return;
-    r.judge.off(pitch, inputBeat(at, r.startTime, r.settings.bpm, r.settings.offset));
+    r.judge.off(pitch, inputBeat(at, r.startTime, r.settings.bpm, offsetMs ?? r.settings.offset));
     if (r.wait && !r.judge.current.length && !r.judge.held.size) return this.finish(r);
   }
 
@@ -180,7 +180,7 @@ export class PracticeEngine {
     if (!r || !this.busy || r.wait) return;
     const { settings, lesson } = r;
     const now = this.playback.now, seconds = 60 / settings.bpm;
-    const t = (now - r.startTime) / seconds;
+    const t = inputBeat(now, r.startTime, settings.bpm, 0);
     while (r.nextClick <= t + .15 / seconds && r.nextClick < r.length) {
       const at = r.startTime + r.nextClick * seconds;
       if (settings.metronome && at >= now - .02) {

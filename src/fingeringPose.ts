@@ -1,4 +1,4 @@
-import type { Hand, Note } from './model';
+import { soundingEndBeat, type Hand, type Note } from './model';
 
 // Keyboard space is measured in white-key widths, with middle C at zero.
 const semitones = [0, .5, 1, 1.5, 2, 3, 3.5, 4, 4.5, 5, 5.5, 6];
@@ -17,11 +17,10 @@ export interface HandFrame {
 export type Motion = 'preview' | 'wait' | 'timed' | 'off';
 
 const preparationBeats = .28;
-const soundingFraction = .94;
 
 export function fingeringChangeBeats(notes: Note[]) {
   const beats = notes.flatMap(note => [
-    note.beat - preparationBeats, note.beat, note.beat + note.duration * soundingFraction, note.beat + note.duration,
+    note.beat - preparationBeats, note.beat, soundingEndBeat(note), note.beat + note.duration,
   ]);
   return [...new Set([0, ...beats])].sort((a, b) => a - b);
 }
@@ -37,7 +36,7 @@ export function fingeringFrame(notes: Note[], target: Note[], down: Set<number>,
   const current = [...held, ...target.filter(note => !held.some(previous => previous.hand === note.hand
     && previous.midi === note.midi && previous.finger === note.finger))];
   frame.cues = current.map(note => ({ note, pressed: motion === 'timed'
-    ? beat >= note.beat && beat < note.beat + note.duration * soundingFraction
+    ? beat >= note.beat && beat < soundingEndBeat(note)
     : down.has(note.midi) && !held.some(previous => previous.id !== note.id
       && previous.hand === note.hand && previous.midi === note.midi && previous.finger !== note.finger) }));
   for (const hand of ['left', 'right'] as const) {
