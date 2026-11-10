@@ -1,5 +1,6 @@
 import type { Lesson, Note, Hand } from './model';
 import { repertoire } from './repertoire';
+import { beginnerStudies } from './beginnerStudies';
 function line(pitches: number[], durations: number[], hand: Hand, fingers: number[]): Note[] {
   let beat = 0; return pitches.map((midi,i) => { const note = { id: `${hand}-${i}`, midi, beat, duration: durations[i], hand, finger: fingers[i] }; beat += durations[i]; return note; });
 }
@@ -53,9 +54,17 @@ const foundations: Lesson[] = [
     theory: { title: '左手的声音延续到下一拍', body: '左手保持两拍时，右手依次弹两个一拍的音。第二拍留意左手仍在保持，再让双手进入下一组。', example: '左手  ● —   ·   右手  ● ●' },
     tip: '先分手，再循环第一小节。跟拍模式可以帮助检查左手的保持时长。', source: '原创双手过渡练习' },
 ];
-const order = ['posture', 'fingers-right', 'fingers-left', 'pulse', 'right', 'left', 'alternate', 'landing', 'together', 'hold-two', 'independence', 'phrase'];
+const order = [
+  'posture', 'two-keys', 'three-echo', 'echo-repeat', 'echo-song',
+  'echo-recall', 'upper-neighbours', 'fingers-right', 'left-echo', 'fingers-left',
+  'pulse', 'right', 'left', 'silent-beat',
+  'alternate', 'pass-the-phrase', 'landing', 'together',
+  'hold-two', 'bass-lantern', 'independence',
+  'phrase', 'echo-duet',
+];
+const beginnerPool = [...foundations, ...existingLessons, ...beginnerStudies];
 const introductoryLessons: Lesson[] = order.map(id => {
-  const lesson = [...foundations, ...existingLessons].find(item => item.id === id)!;
+  const lesson = beginnerPool.find(item => item.id === id)!;
   const stage = ['pulse', 'right', 'left'].includes(id) ? '03 · 读谱与拍感'
     : id === 'together' ? '04 · 双手合作' : lesson.stage;
   return { ...lesson, stage };

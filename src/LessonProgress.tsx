@@ -1,45 +1,47 @@
-import { ArrowRight, CheckCircle2, Circle } from 'lucide-react';
-import type { Lesson } from './model';
+import { ArrowRight, History } from 'lucide-react';
+import type { Attempt, Lesson } from './model';
 import type { ReactNode } from 'react';
 
 export interface CourseProgress {
-  learned: boolean;
   played: boolean;
   chapterCompleted: number;
   chapterTotal: number;
   nextLesson?: Lesson;
+  nextPhase?: { title: string; lesson: Lesson };
 }
 
-export function LessonProgress({ lesson, progress, onNext, onCourses, onStudy, compact = false, children }: {
+export function LessonProgress({ lesson, progress, onNext, onCourses, onReview, result, children }: {
   lesson: Lesson;
   progress: CourseProgress;
-  onNext: () => void;
+  onNext: (lessonId: string) => void;
   onCourses: () => void;
-  onStudy?: () => void;
-  compact?: boolean;
+  onReview?: () => void;
+  result?: Attempt;
   children?: ReactNode;
 }) {
-  const steps = Number(progress.learned) + Number(progress.played);
   const next = progress.nextLesson;
-  const nextLabel = next?.stage === lesson.stage ? '下一课' : '下一章';
-  return <section className={'lesson-progress' + (compact ? ' compact' : '')} aria-label="本课完成进度">
+  const nextPhase = progress.nextPhase;
+  const crossingPhase = nextPhase && nextPhase.lesson.id === next?.id;
+  const nextLabel = crossingPhase ? '进入下一阶段' : next?.stage === lesson.stage ? '下一练习' : '进入下一章';
+  const finishedPiece = result?.fullLesson && result.hit === result.total;
+  let summary = progress.played ? '本课练习已完成' : '待完成整课练习';
+  if (result && !finishedPiece) summary = result.fullLesson ? '本轮练习结束' : '选段或分手练习结束';
+  return <section className={'lesson-progress' + (result ? ' compact' : '')} aria-label="本课完成进度">
     <div className="lesson-progress-summary">
-      <strong>{steps === 2 ? '本课已完成' : `本课完成 ${steps}/2`}</strong>
-      <span>{compact && steps < 2
-        ? progress.learned ? '待完成整课练习' : '待完成学习自检'
-        : `本章已完成 ${progress.chapterCompleted}/${progress.chapterTotal} 课`}</span>
+      <strong>{summary}</strong>
+      <span>本章已完成 {progress.chapterCompleted}/{progress.chapterTotal} 课</span>
     </div>
-    <progress aria-label="本课完成进度" value={steps} max={2} />
-    <div className="lesson-progress-steps">
-      <span data-done={progress.learned}>{progress.learned ? <CheckCircle2 size={13} /> : <Circle size={13} />}学习自检</span>
-      <span data-done={progress.played}>{progress.played ? <CheckCircle2 size={13} /> : <Circle size={13} />}完整练习</span>
-    </div>
+    {!result && <progress aria-label="本章练习进度" value={progress.chapterCompleted} max={progress.chapterTotal} />}
     {children}
-    {onStudy && !progress.learned && <button className="text-button" onClick={onStudy}>完成学习自检</button>}
     <div className="lesson-next">
+      {onReview && <button className="text-button" onClick={onReview}><History size={15} />历史章节</button>}
       {next ? <>
-        <p>{next.stage !== lesson.stage && <span>{next.stage}</span>}{next.title}</p>
-        <button className="soft-button" onClick={onNext} aria-label={`${nextLabel} · ${next.title}`}>{nextLabel}<ArrowRight size={15} /></button>
+        <p>{crossingPhase ? nextPhase.title : next.title}</p>
+        <button className={result ? 'primary-button' : 'soft-button'} onClick={() => onNext(next.id)}
+          aria-label={`${nextLabel} · ${next.title}`}>{nextLabel}<ArrowRight size={15} /></button>
+        {finishedPiece && nextPhase && !crossingPhase &&
+          <button className="text-button" onClick={() => onNext(nextPhase.lesson.id)}
+            title={nextPhase.title} aria-label={`跳到下一阶段 · ${nextPhase.title}`}>跳到下一阶段</button>}
       </> : <>
         <p>已到学习路径末尾</p>
         <button className="soft-button" onClick={onCourses}>查看学习路径<ArrowRight size={15} /></button>

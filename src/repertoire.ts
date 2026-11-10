@@ -1,37 +1,5 @@
 import { chapterNames } from './coursePlan';
-import type { Hand, Lesson, Note } from './model';
-
-// A stroke advances one hand's clock. Empty pitches leave a written rest.
-type Stroke = { pitches: number[]; fingers: number[]; duration: number; spellings?: Record<number, string> };
-const chord = (pitches: number[], fingers: number[], duration: number): Stroke => ({ pitches, fingers, duration });
-const tone = (pitch: number, finger: number, duration = 1) => chord([pitch], [finger], duration);
-const rest = (duration: number) => chord([], [], duration);
-const run = (pitches: number[], fingers: number[], duration = 1) =>
-  pitches.map((pitch, i) => tone(pitch, fingers[i], duration));
-
-function voice(hand: Hand, strokes: Stroke[]): Note[] {
-  let beat = 0;
-  return strokes.flatMap(({ pitches, fingers, duration, spellings }) => {
-    const onset = beat;
-    beat += duration;
-    return pitches.map((midi, i) => ({
-      id: `${hand}-${onset}-${midi}`, hand, midi, beat: onset, duration, finger: fingers[i],
-      spelling: spellings?.[midi],
-    }));
-  });
-}
-
-type Study = Pick<Lesson, 'id' | 'title' | 'subtitle' | 'theory' | 'tip' | 'bpm'> & {
-  assignment: NonNullable<Lesson['assignment']>;
-  right: Stroke[]; left?: Stroke[]; meter?: number;
-};
-function chapter(stage: string, studies: Study[]): Lesson[] {
-  return studies.map(({ right, left = [], meter = 4, ...study }) => {
-    const notes = [...voice('right', right), ...voice('left', left)];
-    const length = Math.max(...[left, right].map(part => part.reduce((sum, stroke) => sum + stroke.duration, 0)));
-    return { ...study, stage, notes, meter, beats: Math.ceil(length / meter) * meter, source: '半拍原创谱例' };
-  });
-}
+import { chapter, chord, rest, run, tone } from './lessonScore';
 
 const majorUp = [1, 2, 3, 1, 2, 3, 4, 5];
 const majorDown = [...majorUp].reverse();
@@ -42,6 +10,14 @@ const scales = chapter(chapterNames.scales, [
     tip: '弹第一小节前先唱 C、D、E、G。第二小节用眼睛跟着旋律回落，再用右手验证。',
     assignment: { task: '从 G4 起，把前四音按相同的全音、全音、小三度关系弹成 G、A、B、D。', check: '我能从另一个起音重现前四音的走向和音程' },
     right: run([60,62,64,67,65,64,62,60], [1,2,3,5,4,3,2,1]),
+  },
+  {
+    id: 'thumb-bridge', title: '让拇指接过中指的音阶', subtitle: '只练一个换位，先把右手的 E 和 F 连起来。', bpm: 48,
+    theory: { title: '先找到换位的两枚键', body: '在一个八度的 C 大调音阶里，右手上行弹过 E 后，拇指要到 F 接班。先只听 E、F 两音的间距和均匀程度，再接 G。', example: '右手 E、F 用 3、1 指，下一次加上用 2 指弹的 G。' },
+    tip: '第一小节慢慢换位，第二小节听中指交给拇指时拍子是否仍然均匀。保持手腕能随手位移动。',
+    assignment: { task: '把这对换指放回 C、D、E、F、G 五音之中，再预看下一课的完整音阶。', check: '我能在 E 到 F 处换位并接上下一个 G' },
+    right: [tone(64,3,2),tone(65,1,2),tone(64,3),tone(65,1),tone(67,2,2)],
+    listening: { question: '第二句比第一句多走到了哪个音？', choices: ['D','G'], answer: 1, explanation: '第一句停在 F，第二句的拇指弹完 F 后，食指把旋律带到 G。' },
   },
   {
     id: 'c-scale', title: '越过五指手位', subtitle: '用穿指与跨指连起 C 大调的一个八度。', bpm: 56,
@@ -70,6 +46,14 @@ const scales = chapter(chapterNames.scales, [
 
 const reading = chapter(chapterNames.reading, [
   {
+    id: 'split-one-beat', title: '把一拍分给两个音', subtitle: '音高固定，只改变一拍里的落键次数。', bpm: 56,
+    theory: { title: '手指变密，脚下的拍子照常走', body: '第一小节每拍响一下。第二小节的第 2 拍放进两个八分音符，各占半拍；第 3 拍仍在原来的位置上。', example: '数“一、二和、三、四”，让“二”和“和”均匀分开。' },
+    tip: '先用一个音轻敲两种节奏，再到速度与节拍里打开半拍细分核对。',
+    assignment: { task: '把一对八分音符从第 2 拍搬到第 3 拍，唱给自己听。', check: '我能让两个短音放进一拍，后面的拍点仍然稳定' },
+    right: [...run([60,60,60,60],[1,1,1,1]),tone(60,1),tone(60,1,.5),tone(60,1,.5),tone(60,1),tone(60,1)],
+    listening: { question: '第二小节哪一拍出现两下？', choices: ['第 2 拍','第 4 拍'], answer: 0, explanation: '第二小节的第 2 拍和它的后半拍各响一下。边听边用另一只手匀速点四拍。' },
+  },
+  {
     id: 'subdivide', title: '在两拍之间找到半拍', subtitle: '在四拍中读八分音符、休止和附点。', bpm: 58,
     theory: { title: '嘴里继续数，手上可以停', body: '把每拍分成“正拍、和”两格。八分音符占一格，附点四分音符占三格。第二小节的开头先休半拍，再在“和”上弹。', example: '第 2 小节的八格依次是 休 C D 延 延 E G 延。' },
     tip: '先拍腿数“1 和 2 和 3 和 4 和”。第二小节 D 在第 2 拍，E 在第 3 拍的后半拍，G 在第 4 拍。',
@@ -93,6 +77,14 @@ const popVoicings = [
 ];
 const popBass = [tone(48,3,4), tone(43,5,4), tone(45,4,4), tone(41,5,4)];
 const harmony = chapter(chapterNames.harmony, [
+  {
+    id: 'stack-three', title: '把三个音叠在一起', subtitle: '从单音到双音，再把三度叠成第一个三和弦。', bpm: 52,
+    theory: { title: '隔一枚白键再找下一个音', body: '从 C 向上隔过 D 找到 E，再隔过 F 找到 G。把这三个音放在一起就是 C 大三和弦。逐个唱时听清成员，同时弹时听整体。', example: '先弹 C，再弹 C 和 E，最后弹 C、E 和 G。' },
+    tip: '慢慢预备右手 1、3、5 指。末尾三音齐奏时，留意是否有某个音迟到了。',
+    assignment: { task: '在 F 上用同样的隔键办法找 F、A、C，先逐个弹，再弹在一起。', check: '我能把三个和弦音从分开唱变成同时弹' },
+    right: [tone(60,1,2),chord([60,64],[1,3],2),tone(60,1),tone(64,3),chord([60,64,67],[1,3,5],2)],
+    listening: { question: '最后一次落键发出了几个不同的音？', choices: ['两个','三个'], answer: 1, explanation: '末尾 C、E、G 同时发声。试着从这团声音里单独哼出最高的 G。' },
+  },
   {
     id: 'triad-quality', title: '只移动一个音，听出大三与小三', subtitle: '先分解再齐奏，比较 C 与 Cm。', bpm: 60,
     theory: { title: '三音决定这两种和弦的色彩', body: 'C 与 Cm 都用 C 和 G 作外框。中间的 E 降半音成为 E♭，根音到三音的距离就从四个半音变成三个。和弦符号中的小写 m 表示小三和弦。', example: 'C = C E G　　Cm = C E♭ G' },
@@ -120,6 +112,14 @@ const harmony = chapter(chapterNames.harmony, [
 
 const symbols = chapter(chapterNames.symbols, [
   {
+    id: 'bass-under-c', title: '上面不动，换一个低音', subtitle: '固定右手 C 和弦，单独听斜线后面那个音。', bpm: 52,
+    theory: { title: '斜线给低音单独留了位置', body: 'C/E 读作 C 和弦配 E 低音。两小节右手完全相同，左手从 C 换到 E。把耳朵放在最低的声音上，就能听出和弦位置的变化。', example: 'C → C/E，右手仍弹 C、E、G。' },
+    tip: '先只弹左手唱 C、E。再用右手跟拍，让软件弹低音，听同一个和弦的两种摆法。',
+    assignment: { task: '让左手再换到 G，写下这个组合的符号，再回到 C。', check: '我能按斜线后面的音名更换低音' },
+    right: [popVoicings[0],popVoicings[0]], left: [tone(48,5,4),tone(52,3,4)],
+    listening: { question: '第二小节哪个声部改变了音高？', choices: ['低音','右手和弦'], answer: 0, explanation: '低音从 C 移到 E，上方三个音保持相同。' },
+  },
+  {
     id: 'slash-bass', title: '读懂斜线后面的低音', subtitle: '给 C、G/B、Am、G 配一条下行低音线。', bpm: 66,
     theory: { title: '斜线两侧分工不同', body: 'G/B 表示和弦用 G 大三和弦，最低音选 B。右手可继续弹 G 的组成音，左手从 C 走到 B，再到 A 和 G。歌谱中看到斜线符号时，先唱整条低音线。', example: '｜ C ｜ G/B ｜ Am ｜ G ｜　低音 C–B–A–G' },
     tip: '让左手从 C4 下方的 C3 开始，依次下行。合手后录一遍，检查即使闭眼也能听见这条低音线。',
@@ -144,6 +144,14 @@ const backbeat = popVoicings.flatMap(voicing => [
 ]);
 const groove = chapter(chapterNames.groove, [
   {
+    id: 'broken-wave', title: '一个和弦的两种走法', subtitle: '在慢速四拍里，先把和弦音逐个弹开。', bpm: 54,
+    theory: { title: '相同的和弦可以有不同的节奏感', body: '第一小节三个音同时落下并持续四拍。第二小节用同样的和弦音依次弹 C、E、G、E。尽管音符动了，听感仍围绕 C 和弦。', example: '先哼出 C、E、G、E，再让右手每拍走一步。' },
+    tip: '只练第二小节的上行和折返，能连续弹两圈后，再到下一课试每拍两个音的版本。',
+    assignment: { task: '用同样的顺序把 F、A、C、A 弹上一小节，听和弦变了而节奏还在。', check: '我能把一个持续和弦弹成均匀的四音伴奏' },
+    right: [popVoicings[0], ...run([60,64,67,64],[1,3,5,3])],
+    listening: { question: '哪一小节的声音一步步展开？', choices: ['第一小节','第二小节'], answer: 1, explanation: '第二小节把三个和弦音摊开，第四拍回到中间的 E。' },
+  },
+  {
     id: 'ballad-eighths', title: '给慢歌铺一层八分音符', subtitle: '左手保持根音，右手把熟悉的和弦拆成流动的伴奏。', bpm: 60,
     theory: { title: '和弦频率与手指频率', body: '这四小节每小节只换一次和弦，右手却每半拍弹一次。每四个八分音符构成低、中、高、中一组，乐句就有了持续运动的感觉。', example: 'C：C E G E　C E G E ｜ G：B D G D　B D G D' },
     tip: '先不开踏板，听第二组有没有抢拍。能弹匀后在真琴上试换和弦后重新踩延音踏板，听前一个低音是否及时消失。',
@@ -167,6 +175,14 @@ const groove = chapter(chapterNames.groove, [
 ]);
 
 const color = chapter(chapterNames.color, [
+  {
+    id: 'one-resolution', title: '只听 F 怎样落到 E', subtitle: '先听一组两音的解决，再把它放进挂留和弦。', bpm: 54,
+    theory: { title: '一个音移动也能改变和弦色彩', body: '低音 C 保持不动时，右手先后弹 F、E。F 在 C 上方是四度，E 是三度。后半段加回上方共同音 G，让这一次移动更容易和完整和弦联系起来。', example: '先唱 F 到 E，再把 G 留在两个和声音响里。' },
+    tip: '把注意力放在会移动的 F 上。第二小节同时弹上方 G，听它怎样衬出下面半音的移动。',
+    assignment: { task: '把 F 再留长两拍，然后回到 E，比较落点的感觉。', check: '我能在固定的低音上听出 F 向 E 的解决' },
+    right: [tone(65,3,2),tone(64,2,2),chord([65,67],[3,5],2),chord([64,67],[2,5],2)], left: [tone(48,5,4),tone(48,5,4)],
+    listening: { question: '第二小节是哪一个音在移动？', choices: ['较低的 F','较高的 G'], answer: 0, explanation: 'G 在原位再次响起，F 向下半音到 E。先哼移动的那条线，再弹双音。' },
+  },
   {
     id: 'sus-add-nine', title: '区分挂留音和附加音', subtitle: '在同一低音上比较 Csus4、C 与 Cadd9。', bpm: 64,
     theory: { title: '先听三音在不在', body: 'Csus4 用 F 取代三音 E，F 回到 E 时形成一次解决。Cadd9 保留三音，再加入 D 作色彩音。谱例最后两小节先听普通 C，再听最高音多出 D 的 Cadd9。', example: '｜ Csus4 ｜ C ｜ C ｜ Cadd9 ｜　左手持续给 C 根音' },
@@ -202,6 +218,14 @@ const color = chapter(chapterNames.color, [
 ]);
 
 const arrange = chapter(chapterNames.arrange, [
+  {
+    id: 'hear-the-ending', title: '闭眼找出最后一个音', subtitle: '先听写一小节的句尾，再扩展到完整动机。', bpm: 58,
+    theory: { title: '用已知起音缩小听写的范围', body: '先在琴上找到 C。短句从 C 出发，前两个音上行。闭眼听最后一个长音，先唱出来，再在 C、D、E 三个键里找它。', example: '听一遍只拍节奏，听第二遍专唱最后一音。' },
+    tip: '在下方听辨里试听后才看答案。找到了落音，再补写前两个音和时值。',
+    assignment: { task: '自己把末音换到另一个键，录下这句，隔天按相同方法听写。', check: '我能凭起音参照先唱、再找到一个句尾音' },
+    right: [tone(60,1),tone(62,2),tone(60,1,2)],
+    listening: { question: '长音最后落在哪里？', choices: ['比开头高一个白键','与开头同音'], answer: 1, explanation: '短句是 C、D、C，结尾回到起音。可以用弹一个 C 的方法验证自己唱的位置。' },
+  },
   {
     id: 'transcribe-motif', title: '从四小节录音扒出旋律和低音', subtitle: '分三遍听，分别记录节奏、低音与旋律。', bpm: 68,
     theory: { title: '每一遍只回答一个问题', body: '到练习室播放示范，暂时移开视线。第一遍只敲旋律的节奏，第二遍哼每小节首拍的低音，第三遍以 C 作参照补旋律音高。先在纸上记下自己的答案，再回谱核对。', example: '纸上画四个小节框。每框下方记低音，上方用短线标出旋律进入的位置。' },
@@ -245,6 +269,14 @@ function brokenBass() {
 const intro = [tone(60,1),tone(64,3),tone(67,5,2),tone(62,1),tone(67,4),tone(71,5,2)];
 const ending = [tone(65,4),tone(62,2),tone(59,1,2),chord([60,64,67],[1,3,5],4)];
 const perform = chapter(chapterNames.perform, [
+  {
+    id: 'join-two-bars', title: '在段落交界处接上下一句', subtitle: '只排练两小节，把前奏末拍连到旋律第一拍。', bpm: 60,
+    theory: { title: '给接缝两边各留一拍', body: '练段落时，如果每次都弹到小节线就停，下一句的手位容易来不及准备。这里前奏在 G 上停两拍，下一小节的 E 是旋律起音，试着在 G 仍响时准备它。', example: '从第 1 小节第 3 拍的 G 唱到下一小节第 1 拍的 E。' },
+    tip: '先循环这两小节，听过小节线时拍子是否仍连续。再从第二小节单独起奏，给自己留一个重入点。',
+    assignment: { task: '在自己的曲子里圈一个段落交界，各取前后一个小节用同样的方法排练。', check: '我能跨过接缝并从后一句单独起奏' },
+    right: [tone(60,1),tone(64,3),tone(67,5,2),tone(64,3),tone(62,2),tone(60,1,2)],
+    listening: { question: '第二句的起音相对前一句末音怎样变化？', choices: ['从 G 向下到 E','从 G 向上到 A'], answer: 0, explanation: '小节线前是 G，越过小节线后落到 E。试着一口气唱过这两个音。' },
+  },
   {
     id: 'intro-outro', title: '写一个能接唱的前奏和能收住的尾声', subtitle: '用 C–G 预告速度，用 G7–C 回到主音。', bpm: 68,
     theory: { title: '开头给线索，结尾给落点', body: '前两小节交代 C 调和四拍脉搏。后两小节用 G 低音上方的 F、D、B 勾勒属七和弦，最后回到 C。将这两对小节分别放到歌曲的开头和结尾。', example: '前奏 ｜ C ｜ G ｜　尾声 ｜ G7 ｜ C ｜' },

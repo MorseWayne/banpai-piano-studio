@@ -3,7 +3,19 @@ export type Hands = Hand | 'both';
 export type Mode = 'wait' | 'rhythm';
 export interface Note { id: string; midi: number; beat: number; duration: number; hand: Hand; finger?: number; spelling?: string }
 export const soundingEndBeat = (note: Note) => note.beat + note.duration * .94;
-export interface Lesson { id: string; title: string; subtitle: string; stage: string; bpm: number; beats: number; meter: number; notes: Note[]; theory: { title: string; body: string; example: string }; tip: string; source: string; assignment?: { task: string; check: string } }
+export interface ListeningTask {
+  question: string;
+  choices: [string, string];
+  answer: 0 | 1;
+  explanation: string;
+}
+export interface Lesson {
+  id: string; title: string; subtitle: string; stage: string; bpm: number; beats: number; meter: number;
+  notes: Note[]; theory: { title: string; body: string; example: string }; tip: string; source: string;
+  assignment?: { task: string; check: string };
+  listening?: ListeningTask;
+  backing?: Note[];
+}
 export interface Attempt { id: string; date: string; lessonId: string; title: string; bpm: number; mode: Mode; hands: Hands; hit: number; total: number; wrong: number; early: number; late: number; durationErrors: number; input: string; assisted: boolean; fullLesson: boolean }
 export const noteName = (midi: number) => ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'][midi % 12] + (Math.floor(midi / 12) - 1);
 export const matchesHand = (n: Note, hands: Hands) => hands === 'both' || n.hand === hands;

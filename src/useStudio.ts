@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { piano } from './audio';
-import { decodeMidi, type Attempt, type Lesson, type Note } from './model';
+import { decodeMidi, soundingEndBeat, type Attempt, type Lesson, type Note } from './model';
 import { deviceTimingKey, loadAttempts, loadMeasurement, loadOffset, loadPracticeProgress, save } from './storage';
 import { mergePracticeProgress } from './progress';
 import * as midi from './midi';
@@ -54,11 +54,30 @@ export function useStudio(lesson:Lesson, isImported: boolean) {
     if (!await initialize() || !checkClock.current()) return false;
     return !reopening.current || await reopening.current;
   }
-  async function previewNotes(notes: Note[]) {
+  const previewSequence = useRef(0);
+  const excerptSources = useRef<AudioBufferSourceNode[]>([]);
+  const stopPreview = useCallback(() => {
+    previewSequence.current++;
+    for (const source of excerptSources.current) source.stop();
+    excerptSources.current = [];
+  }, []);
+  async function previewNotes(notes: Note[], asPhrase = false) {
+    stopPreview();
+    const sequence = previewSequence.current;
     const version = generation.current;
-    if (engine.busy || !await initialize() || version !== generation.current || engine.busy) return;
+    if (engine.busy) return;
+    const initialized = await initialize();
+    if (version !== generation.current || sequence !== previewSequence.current || engine.busy) return;
+    if (!initialized) return false;
     const at = piano.now;
-    for (const note of notes) piano.play(note.midi, 80, at, Math.min(1.5, note.duration * 60 / settingsRef.current.bpm));
+    const seconds = 60 / (asPhrase ? lessonRef.current.bpm : settingsRef.current.bpm);
+    for (const note of notes) {
+      const onset = asPhrase ? at + note.beat * seconds : at;
+      const duration = asPhrase ? (soundingEndBeat(note) - note.beat) * seconds : Math.min(1.5, note.duration * seconds);
+      const source = piano.play(note.midi, asPhrase && note.hand === 'left' ? 64 : 80, onset, duration);
+      if (source && asPhrase) excerptSources.current.push(source);
+    }
+    return true;
   }
   function clearKeys() {
     midiSince.current = performance.now();
@@ -82,6 +101,10 @@ export function useStudio(lesson:Lesson, isImported: boolean) {
     if (clearMessage) setMessage('已停止，可以重新开始。');
   }
   function pause() {
+    if (engine.getSnapshot().status === 'finished') {
+      clearTimeout(loopTimer.current);
+      return;
+    }
     if (!engine.pause()) {
       if (engine.getSnapshot().status !== 'paused') stop(false);
       return;
@@ -350,5 +373,5 @@ export function useStudio(lesson:Lesson, isImported: boolean) {
       engine.stop(); void midi.disconnect();
     };
   }, [engine]);
-  return {settings,setSettings,status,ready,loading,message,setMessage,engine,down,clickBeat,volume,setVolume,attempts,practiceProgress,progressError,result,devices,device,midiError,refresh,connectDevice,setOffset,measurement,measureTiming,timingNotice,initialize,previewNotes,start,stop,pause,resume,onDown,onUp,busy,clicking,toggleClick,pedal};
+  return {settings,setSettings,status,ready,loading,message,setMessage,engine,down,clickBeat,volume,setVolume,attempts,practiceProgress,progressError,result,devices,device,midiError,refresh,connectDevice,setOffset,measurement,measureTiming,timingNotice,initialize,previewNotes,stopPreview,start,stop,pause,resume,onDown,onUp,busy,clicking,toggleClick,pedal};
 }

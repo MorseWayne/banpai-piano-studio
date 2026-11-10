@@ -30,12 +30,14 @@ export const phases = [
   {
     title: '入门触键', goal: '从中央 C 出发，独立读出并弹完第一句双手旋律。',
     chapters: ['01 · 坐姿与触键', '02 · 指法与手位', '03 · 读谱与拍感', '04 · 双手合作', '05 · 双手独立', '06 · 乐句准备'],
-    routine: '每次先找 C3 和 C4，唱出右手音名，再分别练左右手。最后合手，把低音弹轻，听清旋律在哪里换气。',
-    project: '关掉目标音提示，数四拍起奏，连续两次弹完本阶段最后两小节。左手换低音时，右手仍能把乐句唱完。',
+    routine: '先找到中央 C，加一根手指练两音问答，再用三个音弹出四小节《窗边的回声》。隔天换一个结尾。熟悉五指和低音后，逐步让自己的左手接过伴奏。',
+    project: '关掉目标音提示，数四拍起奏，弹完《窗边的回声》的双手版。再从第 3 小节单独起奏，换低音时右手仍能唱出问句。',
+    projectLesson: 'echo-duet',
     reference: alfred, rationale: '借鉴它把读谱、乐理和触键放在同一课里的入门方法。',
   },
   {
     title: '读谱与键盘熟练度', goal: '把谱上的距离、调内音和细分拍点变成手上的动作。',
+    projectLesson: 'waltz-reading',
     chapters: [chapterNames.scales, chapterNames.reading],
     routine: '先唱后弹一个音阶，分手检查换指，再练两小节节奏。每次留一条陌生短句做首遍视奏，弹完才回看错处。',
     project: '抽 C 或 G 大调，分手上下行一个八度。再拿一条陌生四小节旋律，先说拍号、找起音，慢速不停拍读完，并复唱末句。',
@@ -43,6 +45,7 @@ export const phases = [
   },
   {
     title: '和弦与移调', goal: '看到 C、G、Am、F，能安排双手，并把整圈进行移到另一调。',
+    projectLesson: 'transpose-loop',
     chapters: [chapterNames.harmony, chapterNames.symbols],
     routine: '先唱低音，再拆出和弦音。用原位弹一遍，换成就近转位再弹一遍，最后遮住五线谱，只看和弦符号。',
     project: '自写一行 I–V–vi–IV，在 C 调和 G 调各伴奏两圈。左手给根音，右手用转位；录下第二圈，听换和弦处是否丢拍。',
@@ -50,6 +53,7 @@ export const phases = [
   },
   {
     title: '流行伴奏与即兴', goal: '为同一段和声选择不同的织体，并在旋律空隙中加入回应。',
+    projectLesson: 'answer-fill',
     chapters: [chapterNames.groove, chapterNames.color],
     routine: '先用左手和节拍器守住低音，再加右手节奏。录两遍同一进行，比较柱式、分解或反拍伴奏对歌声的影响。',
     project: '选一段熟悉的八小节旋律，唱着弹两个版本。一遍用分解和弦，一遍用反拍短和弦；只在句尾留白处加一次填句，比较哪一版更衬托人声。',
@@ -57,6 +61,7 @@ export const phases = [
   },
   {
     title: '独立编配与演出', goal: '从听出动机、写和弦谱，走到给一首歌定调、编配和连续演奏。',
+    projectLesson: 'recital',
     chapters: [chapterNames.arrange, chapterNames.perform],
     routine: '把整首歌按段落标记，每次只处理一个问题。分别从主歌、副歌和尾声起奏，再连段录音，记下下一次要修的具体小节。',
     project: '选择有权使用的一首完整歌曲。交付一页结构与和弦谱、原调及适合自己音域的移调方案、一段完整演奏录音。隔天回听，标出一处节奏、一处声部平衡问题，重录比较。换一首风格不同的歌重复这个过程。',

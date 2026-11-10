@@ -43,6 +43,7 @@ async function installInputs(page: Page) {
 test('audio suspension and page freeze preserve the round and reject stale notes after reopening', async ({ page }) => {
   await installInputs(page);
   await page.goto('/');
+  await page.getByRole('navigation', { name: '主导航' }).getByRole('button', { name: '学习路径' }).click();
   await page.getByRole('button', { name: /直接练习 · 让旋律走两步/ }).click();
   await page.getByRole('button', { name: '连接 MIDI 键盘' }).click();
   await page.getByLabel('MIDI 输入设备').selectOption('A');
@@ -145,6 +146,7 @@ test('a delayed batch of Web MIDI messages is scored against the audible count-i
     };
   });
   await page.goto('/');
+  await page.getByRole('navigation', { name: '主导航' }).getByRole('button', { name: '学习路径' }).click();
   await page.getByRole('button', { name: /直接练习 · 让旋律走两步/ }).click();
   await page.getByRole('button', { name: '连接 MIDI 键盘' }).click();
   await page.getByLabel('MIDI 输入设备').selectOption('clock');

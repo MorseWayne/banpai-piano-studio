@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, ExternalLink, Play } from 'lucide-react';
 import { groupNotes, type Lesson, type Note } from './model';
 import { readingFor } from './learning';
@@ -8,14 +8,20 @@ import { Fingering } from './components';
 import { Score } from './Score';
 import { LessonProgress, type CourseProgress } from './LessonProgress';
 
-export function LessonStudy({ lesson, checked, onCheck, onPractice, onBack, onPreview, video, onVideo, paused, progress, onNext }: {
+export function LessonStudy({ lesson, checked, onCheck, onPractice, onBack, onPreview, onListen, onStopPreview, video, onVideo, paused, fromPractice, progress, onNext }: {
   lesson: Lesson; checked: string[]; onCheck: (checks: string[]) => void;
   onPractice: () => void; onBack: () => void; onPreview: (notes: Note[]) => void;
+  onListen: (notes: Note[], asPhrase: true) => Promise<boolean | undefined>; onStopPreview: () => void;
   video: string; onVideo: (file: File) => void; paused: boolean;
-  progress?: CourseProgress; onNext: () => void;
+  fromPractice: boolean;
+  progress?: CourseProgress; onNext: (lessonId: string) => void;
 }) {
   const reading = useMemo(() => readingFor(lesson), [lesson]);
   const [section, setSection] = useState(0);
+  const [choice, setChoice] = useState<number | null>(null);
+  const [soundError, setSoundError] = useState('');
+  const listening = lesson.listening;
+  useEffect(() => onStopPreview, [onStopPreview]);
   const [flat, setFlat] = useState(false);
   const [browseBar, setBrowseBar] = useState<number | null>(null);
   const groups = useMemo(() => groupNotes(lesson.notes), [lesson]);
@@ -26,7 +32,7 @@ export function LessonStudy({ lesson, checked, onCheck, onPractice, onBack, onPr
   const complete = reading.checks.every((_, index) => checked.includes(String(index)));
 
   return <div className="study-page">
-    <button className="text-button study-back" onClick={onBack}><ArrowLeft size={15} />学习路径</button>
+    <button className="text-button study-back" onClick={fromPractice ? onPractice : onBack}><ArrowLeft size={15} />{fromPractice ? '返回练习室' : '学习路径'}</button>
     <header className="study-heading"><div><p>{lesson.stage}</p><h1>{lesson.title}</h1><p>{reading.goal}</p></div>
       <button className="primary-button" onClick={onPractice}><Play size={15} />{paused ? '返回当前练习' : '开始本节练习'}</button>
     </header>
@@ -45,10 +51,22 @@ export function LessonStudy({ lesson, checked, onCheck, onPractice, onBack, onPr
           </div>
         </div>
         <section className="study-demonstration" aria-label="本课示范">
+          {listening && <section className="ear-study" aria-label="听辨练习">
+            <h2>先听再弹</h2><p>{listening.question}</p>
+            <div className="ear-controls"><button className="soft-button" onClick={async () => {
+              setSoundError('');
+              const played = await onListen([...lesson.notes, ...(lesson.backing ?? [])], true);
+              if (played === false) setSoundError('未能加载琴声，请再试一次。');
+            }}><Play size={14} />听谱例</button><button className="text-button" onClick={onStopPreview}>停止试听</button></div>
+            <div className="ear-controls" role="group" aria-label="选择听到的答案">{listening.choices.map((label, index) =>
+              <button key={label} className="soft-button" aria-pressed={choice === index} onClick={() => setChoice(index)}>{label}</button>)}</div>
+            {choice !== null && <p role="status">{choice === listening.answer ? '听对了。' : '再听一遍。'}{listening.explanation}</p>}
+            {soundError && <p role="alert">{soundError}</p>}
+          </section>}
           <div className="study-demo-heading"><div><h2>谱面与手位对照</h2><p>选择谱面上的音符，观察对应手指和键位。</p></div>
             <button className="soft-button" onClick={() => onPreview(preview)}>听这个音</button></div>
           <Score purpose="study" lesson={lesson} focusBar={browseBar ?? Math.floor(preview[0].beat / lesson.meter)} startBar={Math.floor(preview[0].beat / lesson.meter)}
-            cursorBeat={preview[0].beat} active={preview} hits={noHits} inspected={preview} hands="both" busy={false}
+            cursorBeat={preview[0].beat} active={preview} hits={noHits} hands="both" busy={false}
             onBrowse={setBrowseBar} onBar={bar => {
               const index = groups.findIndex(group => Math.floor(group[0].beat / lesson.meter) === bar);
               if (index >= 0) setPreview(groups[index]);

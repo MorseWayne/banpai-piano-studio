@@ -41,7 +41,7 @@ export function DeviceSettings({ studio: s }: { studio: ReturnType<typeof useStu
               <input type="range" min="0" max="1" step="0.01" value={settings.clickVolume} disabled={s.busy}
                 onChange={e => s.setSettings(previous => ({ ...previous, clickVolume: Number(e.target.value) }))} />
             </label>
-            <label className="field-row">分手跟拍时播放另一声部<input type="checkbox" checked={settings.accompaniment} disabled={s.busy}
+            <label className="field-row">跟拍时播放伴奏或另一声部<input type="checkbox" checked={settings.accompaniment} disabled={s.busy}
               onChange={e => s.setSettings(previous => ({ ...previous, accompaniment: e.target.checked }))} /></label>
             <div className="panel-actions"><button className="soft-button" onClick={() => void testSound()} disabled={s.loading}>
               <Volume2 size={16} />{s.loading ? '加载音色…' : '播放测试音'}</button>

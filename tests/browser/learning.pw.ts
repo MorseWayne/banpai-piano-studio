@@ -2,8 +2,12 @@ import { expect, test } from '@playwright/test';
 
 test('the foundation phrase leads into interval reading and its playable score', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: /学习讲解 · 把小练习/ }).click();
-  await page.getByRole('button', { name: /下一章 · 用距离读旋律/ }).click();
+  await page.getByRole('button', { name: '学习路径', exact: true }).click();
+  await page.getByRole('button', { name: /学习讲解 · 自己合奏/ }).click();
+  await page.getByRole('button', { name: /进入下一阶段 · 用距离读旋律/ }).click();
+  await expect(page.getByRole('region', { name: '练习乐谱' })).toBeVisible();
+  await page.getByRole('button', { name: '本课要点', exact: true }).click();
+  await page.getByRole('button', { name: '查看完整讲解' }).click();
   await page.getByRole('button', { name: '离谱应用' }).click();
   await expect(page.getByRole('article', { name: '课程讲解' })).toContainText('从 G4 起');
   await page.getByRole('button', { name: '开始本节练习' }).first().click();
@@ -14,9 +18,12 @@ test('the foundation phrase leads into interval reading and its playable score',
 
 test('the first visit starts with posture and learning progress persists separately from practice', async ({ page }) => {
   await page.goto('/');
+  await expect(page.getByRole('heading', { name: '坐稳，放松地弹出第一个音', exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: '练习乐谱' })).toBeVisible();
+  await page.getByRole('navigation', { name: '主导航' }).getByRole('button', { name: '学习路径' }).click();
   await expect(page.getByRole('heading', { name: '学习路径', exact: true })).toBeVisible();
   await expect(page.getByRole('article').first()).toHaveAttribute('aria-label', '坐稳，放松地弹出第一个音');
-  await expect(page.getByRole('article')).toHaveCount(12);
+  await expect(page.getByRole('article')).toHaveCount(23);
   await page.getByRole('button', { name: /学习讲解 · 坐稳/ }).click();
   await expect(page.getByRole('article', { name: '课程讲解' })).toBeVisible();
   await page.getByRole('button', { name: '下一步' }).click();
@@ -39,6 +46,7 @@ test('the first visit starts with posture and learning progress persists separat
 
 test('returning from a lesson preserves notes, cursor and the in-progress round', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('navigation', { name: '主导航' }).getByRole('button', { name: '学习路径' }).click();
   await page.getByRole('button', { name: /直接练习 · 让旋律走两步/ }).click();
   await page.getByRole('button', { name: '开始练习' }).click();
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeEnabled();
@@ -69,6 +77,7 @@ test('returning from a lesson preserves notes, cursor and the in-progress round'
 
 test('rhythm mode resumes at the paused cursor after a fresh count-in', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('navigation', { name: '主导航' }).getByRole('button', { name: '学习路径' }).click();
   await page.getByRole('button', { name: /直接练习 · 让一个音/ }).click();
   await page.getByRole('radio', { name: '跟拍' }).click();
   await page.getByRole('button', { name: '速度与节拍' }).click();
@@ -77,7 +86,7 @@ test('rhythm mode resumes at the paused cursor after a fresh count-in', async ({
   await page.getByRole('button', { name: '开始练习' }).click();
   // Opening or closing the notes panel makes OSMD re-layout and briefly hide the cursor.
   const cursorX = () => page.locator('.score-stage').evaluate(stage => {
-    const box = stage.querySelector('img')?.getBoundingClientRect();
+    const box = stage.querySelector('.score-playhead')?.getBoundingClientRect();
     return box?.width ? box.x : 0;
   });
   const visibleX = async () => {
@@ -85,6 +94,7 @@ test('rhythm mode resumes at the paused cursor after a fresh count-in', async ({
     await expect.poll(async () => x = await cursorX()).toBeGreaterThan(0);
     return x;
   };
+  await expect(page.locator('.score-playhead')).toHaveAttribute('data-state', 'playing');
   const start = await visibleX();
   await expect.poll(cursorX).toBeGreaterThan(start + 8);
   await page.getByRole('button', { name: '本课要点', exact: true }).click();
@@ -102,6 +112,7 @@ test('rhythm mode resumes at the paused cursor after a fresh count-in', async ({
 test('learning content and its linked score remain usable on narrow screens', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
+  await page.getByRole('navigation', { name: '主导航' }).getByRole('button', { name: '学习路径' }).click();
   await page.getByRole('button', { name: /学习讲解 · 认识右手/ }).click();
   await expect(page.locator('.hand-stage')).toHaveAttribute('aria-busy', 'false');
   const note = page.getByRole('button', { name: /试听第 1 小节 · 第 2 拍 · 右手 D4/ });
@@ -119,6 +130,7 @@ test('learning content and its linked score remain usable on narrow screens', as
 
 test('the paused round keeps the grand staff and 3D hands visible beside lesson reminders', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('navigation', { name: '主导航' }).getByRole('button', { name: '学习路径' }).click();
   await page.getByRole('button', { name: /直接练习 · 左手保持，右手走两步/ }).click();
   await page.getByRole('button', { name: '3D 指法' }).click();
   await expect(page.locator('.hand-stage')).toHaveAttribute('aria-busy', 'false');

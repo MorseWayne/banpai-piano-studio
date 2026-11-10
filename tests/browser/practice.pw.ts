@@ -172,6 +172,7 @@ test('a narrow screen can browse individual bars and import a score into the pla
   await page.getByRole('button', { name: '导入 MusicXML' }).click();
   await (await chooser).setFiles('public/example.musicxml');
   await expect(page.getByRole('button', { name: '开始练习' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '下一章', exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.getByRole('button', { name: '想弹的歌' }).click();
   await expect(page.locator('.library-list').first().getByRole('button')).toHaveCount(1);

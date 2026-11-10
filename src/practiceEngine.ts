@@ -27,7 +27,7 @@ interface Round {
   lesson: Lesson;
   settings: Settings;
   judge: Judge;
-  all: Note[];
+  scheduled: Note[];
   selected: Note[];
   startBeat: number;
   length: number;
@@ -39,7 +39,14 @@ interface Round {
   resumeBeat: number;
   nextClick: number;
   nextNoteChange: number;
+  lastWaitOnset?: number; // Audio time when the last required note of a group arrived.
+  pausedScoreBeat?: number;
 }
+
+// Position is the absolute written beat, including rests.
+export type ScoreTime =
+  | { state: 'counting'; position: number; countIn: number }
+  | { state: 'playing' | 'ready' | 'paused' | 'end'; position: number };
 
 export interface Completion {
   lessonId: string;
@@ -64,6 +71,28 @@ export class PracticeEngine {
   };
   get busy() { return this.round !== null && this.view.status !== 'paused'; }
 
+  getScoreTime(): ScoreTime | undefined {
+    const r = this.round;
+    if (!r) return;
+    if (this.view.status === 'paused') return { state: 'paused', position: r.pausedScoreBeat ?? this.view.position };
+    const seconds = 60 / r.settings.bpm;
+    if (r.wait) {
+      const next = r.judge.current[0]?.beat ?? r.length;
+      if (r.lastWaitOnset !== undefined) {
+        const last = r.judge.groups[r.judge.groupIndex - 1][0].beat;
+        const beat = last + Math.max(0, this.playback.now - r.lastWaitOnset) / seconds;
+        if (beat < next) return { state: 'playing', position: r.startBeat + beat };
+      }
+      return { state: r.judge.current.length ? 'ready' : 'end', position: r.startBeat + next };
+    }
+    const beat = (this.playback.now - r.startTime) / seconds;
+    if (beat < r.resumeBeat) return {
+      state: 'counting', position: r.startBeat + r.resumeBeat,
+      countIn: Math.min(r.settings.countIn * r.lesson.meter, r.resumeBeat - beat),
+    };
+    return { state: beat < r.length ? 'playing' : 'end', position: r.startBeat + Math.min(beat, r.length) };
+  }
+
   private publish(change: Partial<Snapshot>) {
     this.view = { ...this.view, ...change };
     for (const listener of this.listeners) listener();
@@ -73,13 +102,17 @@ export class PracticeEngine {
     if (this.round) return false;
     const startBeat = settings.startBar * lesson.meter;
     const length = (settings.endBar - settings.startBar + 1) * lesson.meter;
-    const all = lesson.notes.filter(note => note.beat >= startBeat && note.beat < startBeat + length)
+    const inRange = (note: Note) => note.beat >= startBeat && note.beat < startBeat + length;
+    const score = lesson.notes.filter(inRange)
       .map(note => ({ ...note, beat: note.beat - startBeat }));
-    const selected = all.filter(note => matchesHand(note, settings.hands));
+    const selected = score.filter(note => matchesHand(note, settings.hands));
+    const accompaniment = score.filter(note => !matchesHand(note, settings.hands));
+    const backing = (lesson.backing ?? []).filter(inRange).map(note => ({ ...note, beat: note.beat - startBeat }));
+    const scheduled = demo ? [...score, ...backing] : settings.accompaniment ? [...accompaniment, ...backing] : [];
     if (!selected.length) return false;
     const round: Round = {
       id: crypto.randomUUID(), lesson, settings: { ...settings }, judge: new Judge(selected, settings.mode),
-      all, selected, startBeat, length, wait: !demo && settings.mode === 'wait', demo,
+      scheduled, selected, startBeat, length, wait: !demo && settings.mode === 'wait', demo,
       assisted: settings.hints, sources: new Set(), startTime: 0, resumeBeat: 0, nextClick: 0, nextNoteChange: 0,
     };
     this.round = round;
@@ -97,14 +130,14 @@ export class PracticeEngine {
     const step = settings.subdivisions ? .5 : 1;
     round.nextClick = Math.ceil(resumeBeat / step) * step;
     round.nextNoteChange = resumeBeat;
+    round.lastWaitOnset = undefined;
     for (let beat = 0; beat < leadIn; beat += step) {
       this.playback.click(firstClick + beat * seconds, beat % lesson.meter === 0, settings.clickVolume, beat % 1 !== 0);
     }
     if (!wait) {
-      for (const note of round.all) {
+      for (const note of round.scheduled) {
         const end = soundingEndBeat(note);
         if (end <= resumeBeat) continue;
-        if (!round.demo && !(settings.accompaniment && settings.hands !== 'both' && !matchesHand(note, settings.hands))) continue;
         const onset = Math.max(note.beat, resumeBeat);
         this.playback.play(note.midi, note.hand === 'left' ? 60 : 85, round.startTime + onset * seconds, (end - onset) * seconds);
       }
@@ -120,6 +153,7 @@ export class PracticeEngine {
   pause(position?: number) {
     const r = this.round;
     if (!r || !this.busy) return false;
+    r.pausedScoreBeat = position ?? this.getScoreTime()?.position;
     const t = position === undefined ? inputBeat(this.playback.now, r.startTime, r.settings.bpm, 0) : position - r.startBeat;
     r.resumeBeat = r.wait ? r.judge.current[0]?.beat ?? r.length : Math.max(r.resumeBeat, Math.min(r.length, t));
     r.assisted = true;
@@ -163,9 +197,10 @@ export class PracticeEngine {
     if (verdict !== 'correct') return;
     const hits = new Set(r.judge.hits);
     if (!r.wait) { this.publish({ hits }); return; }
+    r.lastWaitOnset = at;
     const next = r.judge.current;
     this.publish({ hits, active: next.map(n => n.id), position: next.length ? r.startBeat + next[0].beat : this.view.position });
-    return next.length ? '找到了。松开琴键，继续下一组。' : '最后一个音找到了。自然松开琴键，完成这一轮。';
+    return next.length ? '找到了，按谱上的时值准备下一音。' : '最后一个音找到了，保持足拍后松键。';
   }
 
   release(pitch: number, at: number, offsetMs?: number): Completion | undefined {

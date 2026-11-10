@@ -27,6 +27,7 @@ export class PianoAudio {
     source.onended=()=>{this.voices.delete(voice); if(this.live.get(pitch)===voice)this.live.delete(pitch); source.disconnect(); gain.disconnect();};
     source.start(Math.max(at,this.now));
     if(duration !== undefined) this.release(voice,at+duration);
+    return source;
   }
   release(voice: Voice, at=this.now) {
     if(voice.released)return; voice.released=true;

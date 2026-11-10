@@ -8,6 +8,7 @@ import { loadImports, loadLearning, read, save } from './storage';
 import { importMusicXML } from './import';
 import { DeviceSettings } from './DeviceSettings';
 import { PracticeRoom } from './PracticeRoom';
+import { ChapterNavigation, type DirectoryView } from './ChapterNavigation';
 import { LessonStudy } from './LessonStudy';
 import { readingFor } from './learning';
 import type { CourseProgress } from './LessonProgress';
@@ -24,28 +25,57 @@ const chapters = [...new Set(lessons.map(lesson => lesson.stage))].map(title => 
 }));
 
 export default function App() {
-  const [page, setPage] = useState<Page>(() => read('lastLesson', '') ? 'practice' : 'courses');
+  const [page, setPage] = useState<Page>('practice');
+  const [studyFromPractice, setStudyFromPractice] = useState(false);
   const [imports, setImports] = useState<Lesson[]>(loadImports);
   const [lessonId, setLessonId] = useState(() => read('lastLesson', 'posture'));
   const lesson = [...lessons, ...imports].find(item => item.id === lessonId) ?? lessons[0];
   const [phase, setPhase] = useState(() => phases.find(item => item.chapters.includes(lesson.stage)) ?? phases[0]);
   const studio = useStudio(lesson, imports.includes(lesson));
+  const [directory, setDirectory] = useState<DirectoryView | null>(null);
+  const [recentIds, setRecentIds] = useState<string[]>(() => {
+    const saved = read<unknown>('recentPracticeLessons', []);
+    const ids = Array.isArray(saved) ? saved.filter((id): id is string => typeof id === 'string') : [];
+    return [...new Set([...ids, ...studio.attempts.map(attempt => attempt.lessonId)])];
+  });
+  useEffect(() => {
+    if (page === 'practice') setRecentIds(ids => ids[0] === lesson.id ? ids : [lesson.id, ...ids.filter(id => id !== lesson.id)]);
+  }, [page, lesson.id]);
+  useEffect(() => { save('recentPracticeLessons', recentIds); }, [recentIds]);
+  const catalog = new Map([...lessons, ...imports].map(item => [item.id, item]));
+  const recentChapters = new Map<string, Lesson>();
+  for (const id of recentIds) {
+    const item = catalog.get(id);
+    if (item && item.id !== lesson.id && !recentChapters.has(item.stage)) recentChapters.set(item.stage, item);
+  }
+  function openDirectory(view: DirectoryView) {
+    if (!directory) studio.pause();
+    setDirectory(view);
+  }
   const practiced = new Set(Object.keys(studio.practiceProgress));
   const played = new Set(Object.entries(studio.practiceProgress).filter(([, level]) => level !== 'practiced').map(([id]) => id));
   const independent = new Set(Object.entries(studio.practiceProgress).filter(([, level]) => level === 'independent').map(([id]) => id));
   const independentCount = lessons.filter(item => independent.has(item.id)).length;
+  const firstPiece = studio.attempts.find(attempt => attempt.lessonId === 'echo-song' && attempt.fullLesson && attempt.hit === attempt.total);
+  const reviewDue = firstPiece && new Date(firstPiece.date).toDateString() !== new Date().toDateString()
+    && !studio.attempts.some(attempt => attempt.lessonId === 'echo-recall' && attempt.fullLesson && attempt.hit === attempt.total
+      && new Date(attempt.date).getTime() > new Date(firstPiece.date).getTime()
+      && new Date(attempt.date).toDateString() !== new Date(firstPiece.date).toDateString());
   const [learning, setLearning] = useState(loadLearning);
   const [learningError, setLearningError] = useState('');
   const learned = new Set(lessons.filter(item => readingFor(item).checks.every((_, index) => learning[item.id]?.includes(String(index)))).map(item => item.id));
-  const completed = new Set(lessons.filter(item => learned.has(item.id) && played.has(item.id)).map(item => item.id));
+  const completed = new Set(lessons.filter(item => played.has(item.id)).map(item => item.id));
   const completedChapters = chapters.filter(chapter => chapter.lessons.every(item => completed.has(item.id))).length;
   const chapter = chapters.find(item => item.lessons.some(course => course.id === lesson.id));
+  const phaseIndex = phases.findIndex(item => item.chapters.includes(lesson.stage));
+  const nextPhase = phaseIndex >= 0 ? phases[phaseIndex + 1] : undefined;
+  const nextPhaseLesson = nextPhase && lessons.find(item => item.stage === nextPhase.chapters[0]);
   const courseProgress: CourseProgress | undefined = chapter && {
-    learned: learned.has(lesson.id),
     played: played.has(lesson.id),
     chapterCompleted: chapter.lessons.filter(item => completed.has(item.id)).length,
     chapterTotal: chapter.lessons.length,
     nextLesson: lessons[lessons.findIndex(item => item.id === lesson.id) + 1],
+    nextPhase: nextPhase && nextPhaseLesson ? { title: nextPhase.title, lesson: nextPhaseLesson } : undefined,
   };
   const [importError, setImportError] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
@@ -65,17 +95,21 @@ export default function App() {
       const currentPhase = phases.find(item => item.chapters.includes(lesson.stage));
       if (currentPhase) setPhase(currentPhase);
     }
-    if (!(next === 'practice' && studio.status === 'paused')) studio.stop(false);
+    const returningToRound = page === 'learn' && next === 'practice' && (studio.status === 'paused' || studio.status === 'finished');
+    if (!returningToRound) studio.stop(false);
     setPage(next);
     window.scrollTo(0, 0);
   }
   function selectLesson(id: string) {
+    setDirectory(null);
     studio.stop(false);
     setLessonId(id);
     setVideoFile(null);
-    navigate('practice');
+    setPage('practice');
+    window.scrollTo(0, 0);
   }
   function openLearning(id: string) {
+    setStudyFromPractice(page === 'practice');
     if (id === lesson.id) studio.pause();
     else { studio.stop(false); setVideoFile(null); }
     setLessonId(id); setPage('learn'); window.scrollTo(0, 0);
@@ -84,9 +118,6 @@ export default function App() {
     const next = { ...learning, [lesson.id]: checks };
     if (!save('learning', next)) { setLearningError('学习进度保存失败，请释放本机存储空间后重试。'); return; }
     setLearning(next); setLearningError('');
-  }
-  function nextLesson() {
-    if (courseProgress?.nextLesson) openLearning(courseProgress.nextLesson.id);
   }
   function requestImport(title = '') {
     importGoal.current = title;
@@ -128,27 +159,35 @@ export default function App() {
         </div>
       </header>
       <main className={page === 'practice' ? 'practice-page' : undefined}>
+        {reviewDue && ((page === 'courses' && phase === phases[0]) ||
+          (page === 'practice' && lesson.id === 'echo-song' && studio.status === 'idle')) &&
+          <button className="soft-button recall-link" onClick={() => selectLesson('echo-recall')}>隔天复习《窗边的回声》 · 换个结尾<ArrowRight size={15} /></button>}
         {learningError && <p className="error" role="alert">{learningError}</p>}
         {studio.progressError && <p className="error" role="alert">{studio.progressError}</p>}
         {page === 'practice' && <PracticeRoom key={lesson.id} lesson={lesson} studio={studio}
+          chapterNavigation={<ChapterNavigation chapters={chapters} imports={imports} lesson={lesson} progress={studio.practiceProgress}
+            recentChapters={[...recentChapters.values()]} view={directory} onBrowse={openDirectory} onClose={() => setDirectory(null)} onSelect={selectLesson} />}
+          onReview={() => openDirectory('history')}
           onCourses={() => navigate('courses')} onHistory={() => navigate('history')} onLearning={() => openLearning(lesson.id)}
-          progress={courseProgress} onNext={nextLesson} />}
-        {page === 'learn' && <LessonStudy key={lesson.id} lesson={lesson} checked={learning[lesson.id] ?? []}
+          progress={courseProgress} onNext={selectLesson} />}
+        {page === 'learn' && <LessonStudy key={lesson.id} lesson={lesson} checked={learning[lesson.id] ?? []} fromPractice={studyFromPractice}
           onCheck={updateLearning} onPractice={() => navigate('practice')} onBack={() => navigate('courses')}
+          onListen={studio.previewNotes} onStopPreview={studio.stopPreview}
           onPreview={notes => { void studio.previewNotes(notes); }} video={video} onVideo={setVideoFile} paused={studio.status === 'paused'}
-          progress={courseProgress} onNext={nextLesson} />}
+          progress={courseProgress} onNext={selectLesson} />}
         {page === 'courses' && <>
           <div className="page-heading"><div><h1>学习路径</h1><p>从第一次落键，学到为喜欢的歌配和弦、编伴奏并完整演奏。</p></div>
             <div className="course-progress"><b>已完成 {completed.size} / {lessons.length} 课</b><progress aria-label="全部课程完成进度" value={completed.size} max={lessons.length} /></div>
           </div>
           <div className="course-overview"><span>完成章节 <b>{completedChapters} / {chapters.length}</b></span><span>已学习 <b>{learned.size}</b></span><span>已练习 <b>{lessons.filter(item => practiced.has(item.id)).length}</b></span><span>独立完成 <b>{independentCount}</b></span></div>
-          <p className="course-criteria">完成学习自检并弹完本课全部音符，即计入章节进度。听辨、即兴与自选曲通过弹唱或录音自行验收。</p>
+          <p className="course-criteria">一轮内弹完本课全部音符，即计入章节进度。讲解与自检可按需查看。听辨、即兴与自选曲通过弹唱或录音自行验收。</p>
           <nav className="phase-nav" aria-label="学习阶段">{phases.map(item =>
             <button key={item.title} aria-current={phase === item ? 'step' : undefined} onClick={() => setPhase(item)}>{item.title}</button>)}</nav>
           <section className="phase-guide" aria-label={phase.title + '阶段指南'}>
             <h2>{phase.goal}</h2>
             <dl><div><dt>怎样练</dt><dd>{phase.routine}</dd></div>
               <div><dt>阶段验收</dt><dd>{phase.project}</dd></div></dl>
+            <button className="text-button" onClick={() => selectLesson(phase.projectLesson)}>打开阶段练习<ArrowRight size={14} /></button>
             <p>课程参考 · {phase.rationale} <a href={phase.reference.url} target="_blank" rel="noreferrer">{phase.reference.title} ↗</a></p>
           </section>
           {chapters.filter(chapter => phase.chapters.includes(chapter.title)).map(chapter => {
@@ -159,8 +198,8 @@ export default function App() {
             <div className="library-list">{chapter.lessons.map(item => <article className="lesson-row course-row" key={item.id} aria-label={item.title}>
               <div className="course-description"><h3>{item.title}{completed.has(item.id) && <span className="lesson-done">已完成</span>}</h3><p>{item.subtitle}</p>
                 <div className="course-status"><span data-done={learned.has(item.id)}>{learned.has(item.id) ? '已学习' : '待学习'}</span><span data-done={practiced.has(item.id)}>{practiced.has(item.id) ? '已练习' : '待练习'}</span><span data-done={independent.has(item.id)}>{independent.has(item.id) ? '独立完成' : '待独立完成'}</span></div></div>
-              <div className="course-actions"><button className="soft-button" aria-label={`学习讲解 · ${item.title}`} onClick={() => openLearning(item.id)}><BookOpen size={15} />学习讲解</button>
-                <button className="text-button" aria-label={`直接练习 · ${item.title}`} onClick={() => selectLesson(item.id)}>直接练习<ArrowRight size={15} /></button></div>
+              <div className="course-actions"><button className="soft-button" aria-label={`直接练习 · ${item.title}`} onClick={() => selectLesson(item.id)}>直接练习<ArrowRight size={15} /></button>
+                <button className="text-button" aria-label={`学习讲解 · ${item.title}`} onClick={() => openLearning(item.id)}><BookOpen size={15} />学习讲解</button></div>
             </article>)}</div>
           </section>;
           })}

@@ -17,6 +17,64 @@ function setup() {
 }
 
 describe('practice rounds', () => {
+  it('anchors the wait-mode guide to a correct chord and waits at the next onset', () => {
+    const { engine, audio } = setup();
+    engine.start(together, { ...settings, startBar: 1, endBar: 1, bpm: 120 });
+    expect(engine.getScoreTime()).toEqual({ state: 'ready', position: 4 });
+    engine.press(50, 100, 'MIDI', true);
+    audio.now = 101;
+    expect(engine.getScoreTime()?.state).toBe('ready');
+    engine.press(62, 101, 'MIDI', true);
+    audio.now = 101.25;
+    expect(engine.getScoreTime()).toEqual({ state: 'playing', position: 4.5 });
+    engine.press(80, 101.25, 'MIDI', true);
+    audio.now = 104;
+    expect(engine.getScoreTime()).toEqual({ state: 'ready', position: 6 });
+    expect(engine.getSnapshot().hits.size).toBe(2);
+    engine.pause();
+    engine.resume();
+    expect(engine.getScoreTime()).toEqual({ state: 'ready', position: 6 });
+    engine.stop();
+    expect(engine.getScoreTime()).toBeUndefined();
+  });
+
+  it.each([true, false])('reads the audio clock through count-in, pause and restart (demo %s)', demo => {
+    const { engine, audio } = setup();
+    engine.start(pulse, { ...settings, mode: demo ? 'wait' : 'rhythm', startBar: 1, endBar: 1, bpm: 120 }, demo);
+    expect(engine.getScoreTime()).toEqual({ state: 'counting', position: 4, countIn: 4 });
+    audio.now = 102.12 + .75;
+    expect(engine.getScoreTime()?.position).toBeCloseTo(5.5);
+    engine.pause();
+    audio.now = 200;
+    expect(engine.getScoreTime()?.state).toBe('paused');
+    expect(engine.getScoreTime()?.position).toBeCloseTo(5.5);
+    engine.resume();
+    expect(engine.getScoreTime()).toMatchObject({ state: 'counting', countIn: 4 });
+    audio.now = 202.12 + .5;
+    expect(engine.getScoreTime()?.position).toBeCloseTo(6.5);
+    audio.now = 210;
+    expect(engine.getScoreTime()).toEqual({ state: 'end', position: 8 });
+  });
+  it('plays the first piece with optional bass and grades only the learner melody', () => {
+    const piece = lessons.find(lesson => lesson.id === 'echo-song')!;
+    const { engine, audio } = setup();
+    const options: Settings = { ...settings, mode: 'rhythm', endBar: 3, hands: 'right' };
+    engine.start(piece, options);
+    expect(audio.play.mock.calls.map(call => call[0])).toEqual([48, 48, 50, 48]);
+    for (const note of piece.notes) {
+      const at = 104.12 + note.beat;
+      engine.press(note.midi, at, 'MIDI', false);
+      engine.release(note.midi, at + note.duration);
+    }
+    audio.now = 121;
+    expect(engine.tick()?.attempt).toMatchObject({ fullLesson: true, total: 11, hit: 11, wrong: 0, durationErrors: 0 });
+    audio.play.mockClear();
+    engine.start(piece, { ...options, accompaniment: false });
+    expect(audio.play).not.toHaveBeenCalled();
+    engine.stop();
+    engine.start(piece, { ...options, startBar: 2, endBar: 2 }, true);
+    expect(audio.play.mock.calls.map(call => call[0])).toEqual([60, 62, 64, 50]);
+  });
   it('updates sounding notes at boundaries and clears the paused preview when resuming inside a rest', () => {
     const { engine, audio } = setup();
     const notes = [

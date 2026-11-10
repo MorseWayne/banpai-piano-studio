@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { ArrowRight, BookOpen, Box, CheckCircle2, ChevronRight, KeyboardMusic, ListMusic, Music2, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { ArrowRight, BookOpen, Box, CheckCircle2, KeyboardMusic, ListMusic, Music2, X } from 'lucide-react';
 import { Score } from './Score';
 import { Keyboard } from './Keyboard';
 import { HandKeyboard } from './HandKeyboard';
@@ -37,7 +37,7 @@ function PracticeSheet({ studio: s, lesson, selected, inspected, browseBar, onBr
   const cursorBeat = following ? undefined : inspected[0]?.beat ?? targets[0]?.beat;
   return <Score lesson={lesson} focusBar={browseBar ?? settings.startBar} startBar={settings.startBar} cursorBeat={cursorBeat}
     follow={following ? { view: engine, endBar: settings.endBar, showCursor } : undefined}
-    active={targets} hits={hits} inspected={inspected} hands={settings.hands} busy={following} onBrowse={onBrowse}
+    active={targets} hits={hits} hands={settings.hands} busy={following} onBrowse={onBrowse}
     onPreview={notes => { onInspect(notes); void s.previewNotes(notes); }}
     onBar={startBar => {
       onBrowse(null);
@@ -68,14 +68,16 @@ function PracticeKeys({ studio: s, selected, inspected, showHands, low, high, on
     onDown={s.onDown} onUp={s.onUp} onFailure={onFailure} />;
 }
 
-export function PracticeRoom({ lesson, studio: s, onCourses, onHistory, onLearning, progress, onNext }: {
+export function PracticeRoom({ lesson, studio: s, onCourses, onHistory, onLearning, progress, chapterNavigation, onReview, onNext }: {
   lesson: Lesson;
   studio: ReturnType<typeof useStudio>;
   onCourses: () => void;
   onHistory: () => void;
   onLearning: () => void;
   progress?: CourseProgress;
-  onNext: () => void;
+  chapterNavigation: ReactNode;
+  onReview: () => void;
+  onNext: (lessonId: string) => void;
 }) {
   const [guide, setGuide] = useState(false);
   const [browseBar, setBrowseBar] = useState<number | null>(null);
@@ -120,7 +122,7 @@ export function PracticeRoom({ lesson, studio: s, onCourses, onHistory, onLearni
     <>
       <div className="lesson-heading">
         <div>
-          <div className="lesson-path"><button onClick={onCourses}>切换练习</button><ChevronRight size={13} />{lesson.stage}</div>
+          {chapterNavigation}
           <h1>{lesson.title}</h1>
           <p>{lesson.subtitle}</p>
         </div>
@@ -134,8 +136,8 @@ export function PracticeRoom({ lesson, studio: s, onCourses, onHistory, onLearni
           <PracticeSheet studio={s} lesson={lesson} selected={selected} inspected={inspected}
             browseBar={browseBar} onBrowse={setBrowseBar} onInspect={setInspected} />
           <div className="live-feedback">
-            {result && s.status === 'finished' && progress ? <LessonProgress compact lesson={lesson} progress={progress}
-              onNext={onNext} onCourses={onCourses} onStudy={onLearning}>{resultSummary}</LessonProgress> : <><div role="status">{result ? <CheckCircle2 size={17} /> : <Music2 size={17} />}
+            {result && s.status === 'finished' && progress ? <LessonProgress result={result} lesson={lesson} progress={progress}
+              onNext={onNext} onCourses={onCourses} onReview={onReview}>{resultSummary}</LessonProgress> : <><div role="status">{result ? <CheckCircle2 size={17} /> : <Music2 size={17} />}
               {canPlay ? s.message : '当前片段没有所选声部的音符。请切换声部或小节。'}
             </div>
             <BeatCounter studio={s} meter={lesson.meter} /></>}
