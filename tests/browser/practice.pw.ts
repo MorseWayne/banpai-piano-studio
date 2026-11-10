@@ -87,6 +87,50 @@ test('the player fits the desktop minimum and a full wait-mode performance reach
   await expect(page.getByRole('row').last()).toContainText('8/8');
 });
 
+test('looping an excerpt records each completed round once and stopping discards the partial round', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '练习片段' }).click();
+  await page.getByLabel('结束小节').selectOption({ label: '1' });
+  await page.getByLabel('循环练习此片段').check();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: '开始练习' }).click();
+  const stop = page.getByRole('button', { name: '停止', exact: true });
+  const key = page.getByRole('button', { name: 'C4 琴键', exact: true });
+  for (let round = 0; round < 2; round++) {
+    await expect(stop).toBeVisible();
+    for (let i = 0; i < 4; i++) await key.click();
+    await expect(page.getByRole('region', { name: '本轮结果' })).toContainText('命中 4/4');
+  }
+  await expect(stop).toBeVisible();
+  await key.click();
+  await stop.click();
+  await page.reload();
+  await page.getByRole('button', { name: '练习记录', exact: true }).click();
+  await expect(page.getByRole('row').filter({ hasText: '4/4' })).toHaveCount(2);
+  const ids: string[] = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('banpai:attempts')!).map((entry: { id: string }) => entry.id));
+  expect(new Set(ids).size).toBe(2);
+});
+
+test('switching lessons while audio initializes discards the pending start', async ({ page }) => {
+  let releaseSample!: () => void;
+  const gate = new Promise<void>(resolve => { releaseSample = resolve; });
+  await page.route('**/samples/C4.mp3', async route => { await gate; await route.continue(); });
+  await page.goto('/');
+  const requested = page.waitForRequest('**/samples/C4.mp3');
+  await page.getByRole('button', { name: '开始练习' }).click();
+  await requested;
+  try {
+    await page.getByRole('button', { name: '学习路径', exact: true }).click();
+    await page.getByRole('button', { name: /直接练习 · 让旋律走两步/ }).click();
+  } finally { releaseSample(); }
+  await expect(page.getByRole('button', { name: '开始练习' })).toBeEnabled();
+  await expect(page.getByRole('heading', { name: '让旋律走两步' })).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('先听一遍示范');
+  await page.getByRole('button', { name: '开始练习' }).click();
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeEnabled();
+});
+
 test('controls support keyboard use and settings stay in sync with the player', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('radio', { name: '找音' }).focus();

@@ -103,7 +103,8 @@ MIDI 只提供音符、力度及控制消息。应用不能识别实际使用了
 
 - `src/model.ts`：MIDI 消息归一化、分组与评分。
 - `src/PracticeRoom.tsx`、`src/PracticeControls.tsx`：练习室布局、播放控制与 Radix UI 交互组件。
-- `src/useStudio.ts`：练习状态、计时、MIDI 连接与记录。
+- `src/practiceEngine.ts` 管理每轮练习的时间轴、预备拍、伴奏、暂停恢复和成绩结算。
+- `src/useStudio.ts` 将引擎状态接入 React，处理设备连接、实时试听、循环重启和记录保存。
 - `src/audio.ts`：钢琴音源、音量、踏板、节拍器。
 - `src/Score.tsx`、`src/scoreMusicXml.ts`：将课程音符交给 OpenSheetMusicDisplay 排版，并同步谱面试听、指法与跟弹光标。
 - `src/components.tsx`：指法示意和本地示范视频。
