@@ -1,16 +1,17 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Piano } from '@audio-ui/react/piano';
 import { RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
-import { fingerOffset, fingeringFrame, hasFinger, keyX, type Motion } from './fingeringPose';
+import { fingerOffset, fingeringChangeBeats, fingeringFrame, hasFinger, keyX, type Motion } from './fingeringPose';
+import { beatIndex, usePlaybackPosition, type PlaybackView } from './practiceView';
 import { noteName, type Hand, type Note } from './model';
 import type { makePianoScene, PianoView } from './pianoScene';
 
 const whites = Array.from({ length: 88 }, (_, i) => i + 21).filter(midi => Number.isInteger(keyX(midi)));
 const fingers = ['', '拇指', '食指', '中指', '无名指', '小指'];
 
-export function HandKeyboard({ notes, target, down, hits, beat, motion, onDown, onUp, onFailure }: {
-  notes: Note[]; target: Note[]; down: Set<number>; hits: Set<string>; beat: number; motion: Motion;
-  onDown: (pitch: number) => void; onUp: (pitch: number) => void; onFailure: () => void;
+export function HandKeyboard({ notes, target, down, hits, beat = 0, motion, playback, onDown, onUp, onFailure }: {
+  notes: Note[]; target: Note[]; down: Set<number>; hits: Set<string>; beat?: number; motion: Motion;
+  playback?: PlaybackView; onDown: (pitch: number) => void; onUp: (pitch: number) => void; onFailure: () => void;
 }) {
   const stage = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -25,7 +26,10 @@ export function HandKeyboard({ notes, target, down, hits, beat, motion, onDown, 
   const inspection = useMemo(() => detailHand ? {
     hand: detailHand, elevation, zoom, fraction: size.width < 600 ? .5 : .42,
   } : null, [detailHand, elevation, zoom, size.width]);
-  const frame = useMemo(() => fingeringFrame(notes, target, down, hits, beat, motion), [notes, target, down, hits, beat, motion]);
+  const boundaries = useMemo(() => motion === 'timed' ? fingeringChangeBeats(notes) : [], [notes, motion]);
+  const poseBeat = usePlaybackPosition(motion === 'timed' || motion === 'wait' ? playback : undefined,
+    position => motion === 'timed' ? boundaries[beatIndex(boundaries, position)] : position, beat);
+  const frame = useMemo(() => fingeringFrame(notes, target, down, hits, poseBeat, motion), [notes, target, down, hits, poseBeat, motion]);
   const latest = useRef({ frame, down, onFailure, view, inspection });
   latest.current = { frame, down, onFailure, view, inspection };
   const [low, high] = useMemo(() => {

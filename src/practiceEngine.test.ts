@@ -17,6 +17,29 @@ function setup() {
 }
 
 describe('practice rounds', () => {
+  it('updates sounding notes at boundaries and clears the paused preview when resuming inside a rest', () => {
+    const { engine, audio } = setup();
+    const notes = [
+      { ...pulse.notes[0], id: 'short', beat: 4, duration: .5 },
+      { ...independence.notes.find(note => note.hand === 'left')!, id: 'long', beat: 4, duration: 1.5 },
+      { ...pulse.notes[1], id: 'after-rest', beat: 7, duration: 1 },
+    ];
+    engine.start({ ...pulse, notes }, { ...settings, mode: 'rhythm', startBar: 1, endBar: 1 });
+    const downbeat = 104.12;
+    const tick = (at: number) => { audio.now = at; engine.tick(); return engine.getSnapshot(); };
+    const chord = tick(downbeat + .1);
+    expect(chord.active).toEqual(['short', 'long']);
+    expect(tick(downbeat + .4).active).toBe(chord.active);
+    expect(tick(downbeat + .6).active).toEqual(['long']);
+    expect(tick(downbeat + 2).active).toEqual([]);
+    engine.pause();
+    expect(engine.getSnapshot()).toMatchObject({ position: 6, active: ['after-rest'] });
+    audio.now = 200;
+    engine.resume();
+    expect(tick(202).active).toEqual(['after-rest']);
+    expect(tick(204.2).active).toEqual([]);
+    expect(tick(205.3).active).toEqual(['after-rest']);
+  });
   it('waits for a whole chord and the final key release, then issues one result per loop', () => {
     const { audio, engine } = setup();
     const options = { ...settings, startBar: 1, endBar: 1, loop: true };

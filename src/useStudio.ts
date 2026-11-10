@@ -1,21 +1,23 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { piano } from './audio';
-import { decodeMidi, groupNotes, matchesHand, type Attempt, type Lesson, type Note } from './model';
+import { decodeMidi, type Attempt, type Lesson, type Note } from './model';
 import { loadAttempts, loadPracticeProgress, save } from './storage';
 import { mergePracticeProgress } from './progress';
 import * as midi from './midi';
 import { inputAudioTime } from './midiTiming';
 import { PracticeEngine, type Completion, type Settings } from './practiceEngine';
+import { LiveValue } from './practiceView';
 export type { Settings } from './practiceEngine';
 export function useStudio(lesson:Lesson, isImported: boolean) {
   const lastBar = Math.ceil(lesson.beats / lesson.meter) - 1;
   const initialEndBar = isImported ? Math.min(1, lastBar) : lastBar;
   const [settings,setSettings]=useState<Settings>({bpm:lesson.bpm,hands:'both',mode:'wait',metronome:true,clickVolume:.6,subdivisions:false,countIn:1,loop:false,accompaniment:true,startBar:0,endBar:initialEndBar,offset:0,hints:true});
   const [engine] = useState(() => new PracticeEngine(piano));
-  const { status, position, active, hits, beat: practiceBeat } = useSyncExternalStore(engine.subscribe, engine.getSnapshot);
+  const status = useSyncExternalStore(engine.subscribe, () => engine.getSnapshot().status);
   const [ready,setReady]=useState(false),[loading,setLoading]=useState(false),[message,setMessage]=useState('先听一遍示范，再按自己的速度开始。');
-  const [down,setDown]=useState(new Set<number>());
-  const [clickBeat,setClickBeat]=useState(-1),[volume,setVolume]=useState(.55);
+  const [down] = useState(() => new LiveValue(new Set<number>()));
+  const [clickBeat] = useState(() => new LiveValue(-1));
+  const [volume,setVolume]=useState(.55);
   const [attempts,setAttempts]=useState<Attempt[]>(loadAttempts),[result,setResult]=useState<Attempt|null>(null);
   const [practiceProgress, setPracticeProgress] = useState(() => mergePracticeProgress(loadPracticeProgress(), attempts));
   const [progressError, setProgressError] = useState('');
@@ -27,7 +29,6 @@ export function useStudio(lesson:Lesson, isImported: boolean) {
   const callbackRef=useRef<(message:midi.MidiMessage)=>void>(()=>{});
   const midiSince = useRef(0), deviceRequest = useRef(0), audioRequest = useRef(0);
   const busy=status==='counting'||status==='running'||status==='demo';
-  const beat = clicking ? clickBeat : practiceBeat;
   async function initialize() {
     const request = ++audioRequest.current, version = generation.current;
     setLoading(true);
@@ -50,13 +51,13 @@ export function useStudio(lesson:Lesson, isImported: boolean) {
   }
   function clearKeys() {
     midiSince.current = performance.now();
-    inputHeld.current.clear(); setDown(new Set()); setPedal(false);
+    inputHeld.current.clear(); down.set(new Set()); setPedal(false);
   }
   function stop(clearMessage = true, resetPosition = false) {
     generation.current++;
     clearTimeout(loopTimer.current);
     standalone.current = null;
-    setClicking(false); setClickBeat(-1);
+    setClicking(false); clickBeat.set(-1);
     engine.stop(resetPosition);
     clearKeys();
     if (clearMessage) setMessage('已停止，可以重新开始。');
@@ -122,14 +123,15 @@ export function useStudio(lesson:Lesson, isImported: boolean) {
   function onDown(n:number,source='屏幕琴键',velocity=90,at=piano.now) {
     if(inputHeld.current.has(n))return;
     const press = Symbol();
-    inputHeld.current.set(n,press);setDown(new Set(inputHeld.current.keys()));
+    inputHeld.current.set(n,press);down.set(new Set(inputHeld.current.keys()));
     if(!ready){void initialize().then(ok=>{if(ok&&inputHeld.current.get(n)===press)piano.play(n,velocity,piano.now,undefined,true);});return;}
     piano.play(n,velocity,piano.now,undefined,true);
     const feedback = engine.press(n, at, source, settingsRef.current.hints);
     if (feedback) setMessage(feedback);
   }
   function releaseNote(n: number, at = piano.now) {
-    inputHeld.current.delete(n); setDown(new Set(inputHeld.current.keys())); piano.off(n);
+    if (inputHeld.current.delete(n)) down.set(new Set(inputHeld.current.keys()));
+    piano.off(n);
     const finished = engine.release(n, at);
     if (finished) complete(finished);
   }
@@ -188,7 +190,7 @@ export function useStudio(lesson:Lesson, isImported: boolean) {
           piano.click(free.next, free.index % l.meter === 0, s.clickVolume);
           free.next += 60 / s.bpm; free.index++;
         }
-        setClickBeat(Math.max(0, free.index - 1) % l.meter);
+        clickBeat.set(Math.max(0, free.index - 1) % l.meter);
       }
       const finished = engine.tick();
       if (finished) complete(finished);
@@ -222,9 +224,5 @@ export function useStudio(lesson:Lesson, isImported: boolean) {
       engine.stop(); void midi.disconnect();
     };
   }, [engine]);
-  const target = useMemo(() => status === 'idle' || (status === 'counting' && !active.length)
-    ? groupNotes(lesson.notes.filter(note => matchesHand(note, settings.hands)
-      && note.beat >= settings.startBar * lesson.meter && note.beat < (settings.endBar + 1) * lesson.meter))[0] || []
-    : lesson.notes.filter(note => active.includes(note.id)), [lesson, active, status, settings.hands, settings.startBar, settings.endBar]);
-  return {settings,setSettings,status,ready,loading,message,setMessage,down,target,hits,beat,position,volume,setVolume,attempts,practiceProgress,progressError,result,devices,device,midiError,refresh,connectDevice,initialize,previewNotes,start,stop,pause,resume,onDown,onUp,busy,clicking,toggleClick,pedal};
+  return {settings,setSettings,status,ready,loading,message,setMessage,engine,down,clickBeat,volume,setVolume,attempts,practiceProgress,progressError,result,devices,device,midiError,refresh,connectDevice,initialize,previewNotes,start,stop,pause,resume,onDown,onUp,busy,clicking,toggleClick,pedal};
 }

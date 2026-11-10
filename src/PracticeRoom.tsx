@@ -1,13 +1,72 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ArrowRight, BookOpen, Box, CheckCircle2, ChevronRight, KeyboardMusic, ListMusic, Music2, X } from 'lucide-react';
 import { Score } from './Score';
 import { Keyboard } from './Keyboard';
 import { HandKeyboard } from './HandKeyboard';
 import { read, save } from './storage';
-import { matchesHand, type Lesson, type Note } from './model';
+import { groupNotes, matchesHand, type Lesson, type Note } from './model';
 import { PracticeControls } from './PracticeControls';
 import type { useStudio } from './useStudio';
 import { LessonProgress, type CourseProgress } from './LessonProgress';
+
+type Studio = ReturnType<typeof useStudio>;
+type InstrumentProps = { studio: Studio; selected: Note[]; inspected: Note[] };
+const noNotes: Note[] = [];
+const noIds: string[] = [];
+const noHits = new Set<string>();
+
+function useTargets({ studio: s, selected, inspected }: InstrumentProps) {
+  const { engine, settings, status } = s;
+  const active = useSyncExternalStore(engine.subscribe, () => settings.hints ? engine.getSnapshot().active : noIds);
+  return useMemo(() => {
+    if (!settings.hints) return noNotes;
+    if (!s.busy && status !== 'paused' && inspected.length) return inspected;
+    if (status === 'idle' || (status === 'counting' && !active.length)) return groupNotes(selected)[0] ?? noNotes;
+    return selected.filter(note => active.includes(note.id));
+  }, [settings.hints, s.busy, status, inspected, selected, active]);
+}
+
+function PracticeSheet({ studio: s, lesson, selected, inspected, browseBar, onBrowse, onInspect }: InstrumentProps & {
+  lesson: Lesson; browseBar: number | null; onBrowse: (bar: number | null) => void; onInspect: (notes: Note[]) => void;
+}) {
+  const { engine, settings } = s;
+  const targets = useTargets({ studio: s, selected, inspected });
+  const hits = useSyncExternalStore(engine.subscribe, () => engine.getSnapshot().hits);
+  const following = s.busy || s.status === 'paused';
+  const showCursor = settings.hints || settings.mode === 'rhythm' || s.status === 'demo';
+  const cursorBeat = following ? undefined : inspected[0]?.beat ?? targets[0]?.beat;
+  return <Score lesson={lesson} focusBar={browseBar ?? settings.startBar} startBar={settings.startBar} cursorBeat={cursorBeat}
+    follow={following ? { view: engine, endBar: settings.endBar, showCursor } : undefined}
+    active={targets} hits={hits} inspected={inspected} hands={settings.hands} busy={following} onBrowse={onBrowse}
+    onPreview={notes => { onInspect(notes); void s.previewNotes(notes); }}
+    onBar={startBar => {
+      onBrowse(null);
+      s.setSettings(previous => ({ ...previous, startBar, endBar: Math.max(startBar, previous.endBar) }));
+    }} />;
+}
+
+function BeatCounter({ studio: s, meter }: { studio: Studio; meter: number }) {
+  const beat = useSyncExternalStore(s.clicking ? s.clickBeat.subscribe : s.engine.subscribe,
+    s.clicking ? s.clickBeat.getSnapshot : () => s.engine.getSnapshot().beat);
+  return <div className="beat-counter" aria-label="当前节拍">
+    {Array.from({ length: meter }, (_, i) => <span key={i} className={beat === i ? 'on' : ''}>{i + 1}</span>)}
+  </div>;
+}
+
+function PracticeKeys({ studio: s, selected, inspected, showHands, low, high, onFailure }: InstrumentProps & {
+  showHands: boolean; low: number; high: number; onFailure: () => void;
+}) {
+  const targets = useTargets({ studio: s, selected, inspected });
+  const down = useSyncExternalStore(s.down.subscribe, s.down.getSnapshot);
+  const hits = useSyncExternalStore(s.engine.subscribe, () => showHands ? s.engine.getSnapshot().hits : noHits);
+  const preview = !s.busy && s.status !== 'paused' && inspected.length > 0;
+  const handNotes = useMemo(() => preview ? [...selected, ...inspected] : selected, [preview, selected, inspected]);
+  if (!showHands) return <Keyboard down={down} target={targets} onDown={note => s.onDown(note)} onUp={s.onUp} low={low} high={high} />;
+  return <HandKeyboard notes={handNotes} target={targets} down={down} hits={hits} playback={s.engine}
+    motion={!s.settings.hints ? 'off' : s.status === 'demo' || (s.status === 'running' && s.settings.mode === 'rhythm')
+      ? 'timed' : s.status === 'running' ? 'wait' : 'preview'}
+    onDown={s.onDown} onUp={s.onUp} onFailure={onFailure} />;
+}
 
 export function PracticeRoom({ lesson, studio: s, onCourses, onHistory, onLearning, progress, onNext }: {
   lesson: Lesson;
@@ -25,17 +84,11 @@ export function PracticeRoom({ lesson, studio: s, onCourses, onHistory, onLearni
   const [handError, setHandError] = useState(false);
   const { settings } = s;
   const barCount = Math.ceil(lesson.beats / lesson.meter);
-  const focusBar = s.busy || s.status === 'paused' ? Math.min(settings.endBar, Math.floor(s.position / lesson.meter)) : browseBar ?? settings.startBar;
   const selected = useMemo(() => lesson.notes.filter(note => matchesHand(note, settings.hands)
     && note.beat >= settings.startBar * lesson.meter && note.beat < (settings.endBar + 1) * lesson.meter),
     [lesson, settings.hands, settings.startBar, settings.endBar]);
   const low = Math.min(48, ...lesson.notes.map(note => note.midi));
   const high = Math.max(72, ...lesson.notes.map(note => note.midi));
-  const preview = !s.busy && s.status !== 'paused' && inspected.length > 0;
-  const handNotes = useMemo(() => preview ? [...selected, ...inspected] : selected, [preview, selected, inspected]);
-  const targets = settings.hints ? (preview ? inspected : s.target) : [];
-  const cursorBeat = (s.busy || s.status === 'paused') && (settings.hints || settings.mode === 'rhythm' || s.status === 'demo') ? s.position
-    : preview ? inspected[0].beat : targets[0]?.beat;
   const canPlay = selected.length > 0;
   const result = s.result;
   const resultSummary = result && <section className="result-strip" aria-label="本轮结果">
@@ -78,21 +131,14 @@ export function PracticeRoom({ lesson, studio: s, onCourses, onHistory, onLearni
       <PracticeControls studio={s} lesson={lesson} barCount={barCount} canPlay={canPlay} onRangeChange={() => setBrowseBar(null)} />
       <div className={'music-desk' + (guide ? ' with-guide' : '')}>
         <div className="instrument">
-          <Score lesson={lesson} focusBar={focusBar} startBar={settings.startBar} cursorBeat={cursorBeat}
-            active={targets} hits={s.hits} inspected={inspected} hands={settings.hands} busy={s.busy || s.status === 'paused'} onBrowse={setBrowseBar}
-            onPreview={notes => { setInspected(notes); void s.previewNotes(notes); }}
-            onBar={startBar => {
-              setBrowseBar(null);
-              s.setSettings(previous => ({ ...previous, startBar, endBar: Math.max(startBar, previous.endBar) }));
-            }} />
+          <PracticeSheet studio={s} lesson={lesson} selected={selected} inspected={inspected}
+            browseBar={browseBar} onBrowse={setBrowseBar} onInspect={setInspected} />
           <div className="live-feedback">
             {result && s.status === 'finished' && progress ? <LessonProgress compact lesson={lesson} progress={progress}
               onNext={onNext} onCourses={onCourses} onStudy={onLearning}>{resultSummary}</LessonProgress> : <><div role="status">{result ? <CheckCircle2 size={17} /> : <Music2 size={17} />}
               {canPlay ? s.message : '当前片段没有所选声部的音符。请切换声部或小节。'}
             </div>
-            <div className="beat-counter" aria-label="当前节拍">
-              {Array.from({ length: lesson.meter }, (_, i) => <span key={i} className={s.beat === i ? 'on' : ''}>{i + 1}</span>)}
-            </div></>}
+            <BeatCounter studio={s} meter={lesson.meter} /></>}
           </div>
           <section className="keyboard-deck" aria-label="屏幕琴键">
             <div className="keyboard-heading"><h2><KeyboardMusic size={17} />屏幕琴键</h2>
@@ -107,12 +153,8 @@ export function PracticeRoom({ lesson, studio: s, onCourses, onHistory, onLearni
               }} />目标音提示</label>
             </div>
             {handError && <p className="hand-error" role="alert">立体视图加载失败，已切回普通琴键。</p>}
-            {showHands ? <HandKeyboard notes={handNotes} target={targets} down={s.down} hits={s.hits} beat={s.position}
-              motion={!settings.hints ? 'off' : s.status === 'demo' || (s.status === 'running' && settings.mode === 'rhythm')
-                ? 'timed' : s.status === 'running' ? 'wait' : 'preview'}
-              onDown={s.onDown} onUp={s.onUp} onFailure={() => { setShowHands(false); setHandError(true); save('showHands', false); }} />
-              : <Keyboard down={s.down} target={targets} onDown={note => s.onDown(note)} onUp={s.onUp}
-                low={low} high={high} />}
+            <PracticeKeys studio={s} selected={selected} inspected={inspected} showHands={showHands} low={low} high={high}
+              onFailure={() => { setShowHands(false); setHandError(true); save('showHands', false); }} />
           </section>
           {(!progress || s.status !== 'finished') && resultSummary}
         </div>

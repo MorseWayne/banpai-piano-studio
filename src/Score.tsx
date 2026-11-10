@@ -3,6 +3,7 @@ import type { OpenSheetMusicDisplay, VexFlowGraphicalNote } from 'opensheetmusic
 import { ChevronLeft, ChevronRight, Headphones, Music2 } from 'lucide-react';
 import { groupNotes, type Hands, type Lesson, type Note } from './model';
 import { divisions, scoreMusicXml, writtenPitch } from './scoreMusicXml';
+import { beatIndex, usePlaybackPosition, type PlaybackView } from './practiceView';
 
 interface ScoreProps {
   purpose?: 'practice' | 'study';
@@ -10,6 +11,7 @@ interface ScoreProps {
   focusBar: number;
   startBar: number;
   cursorBeat: number | undefined;
+  follow?: { view: PlaybackView; endBar: number; showCursor: boolean };
   active: Note[];
   hits: Set<string>;
   hands: Hands;
@@ -75,7 +77,7 @@ function indexPage(display: OpenSheetMusicDisplay, lesson: Lesson, firstBar: num
   return { groups, beats, cursor };
 }
 
-export function Score({ purpose = 'practice', lesson, focusBar, startBar, cursorBeat, active, hits, hands, busy, inspected, onPreview, onBrowse, onBar }: ScoreProps) {
+export function Score({ purpose = 'practice', lesson, focusBar, startBar, cursorBeat, follow, active, hits, hands, busy, inspected, onPreview, onBrowse, onBar }: ScoreProps) {
   const host = useRef<HTMLDivElement>(null);
   const cursorStep = useRef(0);
   const [width, setWidth] = useState(0);
@@ -85,7 +87,10 @@ export function Score({ purpose = 'practice', lesson, focusBar, startBar, cursor
   const [error, setError] = useState('');
   const total = Math.ceil(lesson.beats / lesson.meter);
   const perPage = width / zoom < 555 ? 1 : 2;
-  const bar = Math.floor(Math.min(total - 1, focusBar) / perPage) * perPage;
+  const pageStart = (bar: number) => Math.floor(Math.min(total - 1, bar) / perPage) * perPage;
+  const endBar = follow?.endBar ?? total - 1;
+  const bar = usePlaybackPosition(follow?.view,
+    position => pageStart(Math.min(endBar, Math.floor(position / lesson.meter))), pageStart(focusBar));
   const count = Math.min(perPage, total - bar);
 
   useEffect(() => {
@@ -169,9 +174,12 @@ export function Score({ purpose = 'practice', lesson, focusBar, startBar, cursor
     }
   }, [page, active, hands, hits, busy]);
 
-  const nextStep = page?.beats.findIndex(beat => beat > (cursorBeat ?? 0) + 0.00001) ?? -1;
-  const step = page ? (nextStep < 0 ? page.beats.length - 1 : Math.max(0, nextStep - 1)) : 0;
-  const showCursor = cursorBeat !== undefined && cursorBeat >= bar * lesson.meter && cursorBeat < (bar + count) * lesson.meter;
+  function cursorIndex(beat?: number) {
+    if (!page?.beats.length || beat === undefined || beat < bar * lesson.meter || beat >= (bar + count) * lesson.meter) return -1;
+    return Math.max(0, beatIndex(page.beats, beat + .00001));
+  }
+  const step = usePlaybackPosition(follow?.showCursor ? follow.view : undefined, cursorIndex, cursorIndex(cursorBeat));
+  const showCursor = step >= 0;
   useLayoutEffect(() => {
     if (!page) return;
     if (!showCursor || !page.beats.length) { page.cursor.hide(); return; }

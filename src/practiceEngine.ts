@@ -38,6 +38,7 @@ interface Round {
   startTime: number;
   resumeBeat: number;
   nextClick: number;
+  nextNoteChange: number;
 }
 
 export interface Completion {
@@ -79,7 +80,7 @@ export class PracticeEngine {
     const round: Round = {
       id: crypto.randomUUID(), lesson, settings: { ...settings }, judge: new Judge(selected, settings.mode),
       all, selected, startBeat, length, wait: !demo && settings.mode === 'wait', demo,
-      assisted: settings.hints, sources: new Set(), startTime: 0, resumeBeat: 0, nextClick: 0,
+      assisted: settings.hints, sources: new Set(), startTime: 0, resumeBeat: 0, nextClick: 0, nextNoteChange: 0,
     };
     this.round = round;
     this.beginSegment(round, false);
@@ -95,6 +96,7 @@ export class PracticeEngine {
     round.startTime = firstClick + (leadIn - resumeBeat) * seconds;
     const step = settings.subdivisions ? .5 : 1;
     round.nextClick = Math.ceil(resumeBeat / step) * step;
+    round.nextNoteChange = resumeBeat;
     for (let beat = 0; beat < leadIn; beat += step) {
       this.playback.click(firstClick + beat * seconds, beat % lesson.meter === 0, settings.clickVolume, beat % 1 !== 0);
     }
@@ -194,8 +196,17 @@ export class PracticeEngine {
     const status = counting ? 'counting' : r.demo ? 'demo' : 'running';
     if (this.view.position === position && this.view.status === status && this.view.beat === beat) return;
     let active = this.view.active;
-    if (!counting) {
-      const ids = r.selected.filter(n => n.beat <= t && n.beat + n.duration > t).map(n => n.id);
+    if (!counting && t >= r.nextNoteChange) {
+      const ids: string[] = [];
+      r.nextNoteChange = Infinity;
+      for (const note of r.selected) {
+        if (note.beat > t) {
+          r.nextNoteChange = Math.min(r.nextNoteChange, note.beat);
+        } else if (note.beat + note.duration > t) {
+          ids.push(note.id);
+          r.nextNoteChange = Math.min(r.nextNoteChange, note.beat + note.duration);
+        }
+      }
       if (ids.length !== active.length || ids.some((id, i) => id !== active[i])) active = ids;
     }
     this.publish({ status, beat, position, active });

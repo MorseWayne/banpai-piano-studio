@@ -16,6 +16,16 @@ export interface HandFrame {
 }
 export type Motion = 'preview' | 'wait' | 'timed' | 'off';
 
+const preparationBeats = .28;
+const soundingFraction = .94;
+
+export function fingeringChangeBeats(notes: Note[]) {
+  const beats = notes.flatMap(note => [
+    note.beat - preparationBeats, note.beat, note.beat + note.duration * soundingFraction, note.beat + note.duration,
+  ]);
+  return [...new Set([0, ...beats])].sort((a, b) => a - b);
+}
+
 export function fingeringFrame(notes: Note[], target: Note[], down: Set<number>, hits: Set<string>,
   beat: number, motion: Motion): HandFrame {
   const frame: HandFrame = { cues: [], hands: {} };
@@ -27,7 +37,7 @@ export function fingeringFrame(notes: Note[], target: Note[], down: Set<number>,
   const current = [...held, ...target.filter(note => !held.some(previous => previous.hand === note.hand
     && previous.midi === note.midi && previous.finger === note.finger))];
   frame.cues = current.map(note => ({ note, pressed: motion === 'timed'
-    ? beat >= note.beat && beat < note.beat + note.duration * .94
+    ? beat >= note.beat && beat < note.beat + note.duration * soundingFraction
     : down.has(note.midi) && !held.some(previous => previous.id !== note.id
       && previous.hand === note.hand && previous.midi === note.midi && previous.finger !== note.finger) }));
   for (const hand of ['left', 'right'] as const) {
@@ -36,7 +46,7 @@ export function fingeringFrame(notes: Note[], target: Note[], down: Set<number>,
     // Lead a free finger toward its next note while the sounding fingers stay put.
     if (motion === 'timed') {
       for (const note of notes) {
-        if (note.hand === hand && hasFinger(note) && note.beat > beat && note.beat <= beat + .28
+        if (note.hand === hand && hasFinger(note) && note.beat > beat && note.beat - preparationBeats <= beat
           && !fingers.some(cue => cue.note.finger === note.finger)) fingers.push({ note, pressed: false });
       }
     }

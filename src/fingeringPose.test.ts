@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { fingeringFrame } from './fingeringPose';
+import { fingeringChangeBeats, fingeringFrame } from './fingeringPose';
+import { beatIndex } from './practiceView';
 import { lessons } from './lessons';
 import type { Note } from './model';
 
@@ -9,6 +10,17 @@ const right = duet.filter(note => note.hand === 'right');
 const noKeys = new Set<number>(), noHits = new Set<string>();
 
 describe('3D fingering', () => {
+  it('preserves the full timed pose between visual changes, including when seeking backwards', () => {
+    const notes = duet.filter(note => note.beat >= 4);
+    const boundaries = fingeringChangeBeats(notes);
+    const samples = boundaries.flatMap(beat => [beat - .0001, beat, beat + .0001]).filter(beat => beat >= 0);
+    for (const beat of samples.reverse()) {
+      const targets = notes.filter(note => note.beat <= beat && beat < note.beat + note.duration);
+      const poseBeat = boundaries[beatIndex(boundaries, beat)];
+      expect(fingeringFrame(notes, targets, noKeys, noHits, poseBeat, 'timed'))
+        .toEqual(fingeringFrame(notes, targets, noKeys, noHits, beat, 'timed'));
+    }
+  });
   it('holds the bass while the melody releases and anticipates the next finger', () => {
     const frame = fingeringFrame(duet, [bass, right[0]], noKeys, noHits, .96, 'timed');
     expect(frame.hands.left?.fingers).toEqual([{ note: bass, pressed: true }]);
