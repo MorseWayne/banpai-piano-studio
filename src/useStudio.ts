@@ -8,6 +8,11 @@ import { ClockContinuity, inputAudioTime, MidiDeliveryWindow, type TimingMeasure
 import { PracticeEngine, type Completion, type Settings } from './practiceEngine';
 import { LiveValue } from './practiceView';
 export type { Settings } from './practiceEngine';
+export interface Exercise {
+  lesson: Lesson;
+  settings: Pick<Settings, 'hands' | 'mode' | 'hints' | 'startBar' | 'endBar'>;
+  onComplete: (attempt: Attempt | null) => void;
+}
 export function useStudio(lesson:Lesson, isImported: boolean) {
   const lastBar = Math.ceil(lesson.beats / lesson.meter) - 1;
   const initialEndBar = isImported ? Math.min(1, lastBar) : lastBar;
@@ -23,6 +28,7 @@ export function useStudio(lesson:Lesson, isImported: boolean) {
   const [progressError, setProgressError] = useState('');
   const [devices,setDevices]=useState<midi.MidiPort[]>([]),[device,setDevice]=useState<midi.MidiPort|null>(null),[midiError,setMidiError]=useState('');
   const history = useRef(attempts);
+  const exerciseRef = useRef<Exercise | undefined>(undefined);
   const inputHeld=useRef(new Map<number,{ offset: number }>()),currentDevice=useRef(device),standalone=useRef<{next:number,index:number}|null>(null);
   const [clicking,setClicking]=useState(false);const [pedal,setPedal]=useState(false);const settingsRef=useRef(settings),lessonRef=useRef(lesson);settingsRef.current=settings;lessonRef.current=lesson;
   const startRef=useRef<(demo?:boolean)=>Promise<void>>(async()=>{}),generation=useRef(0),loopTimer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
@@ -93,6 +99,8 @@ export function useStudio(lesson:Lesson, isImported: boolean) {
   }
   function stop(clearMessage = true, resetPosition = false) {
     generation.current++;
+    exerciseRef.current = undefined;
+    stopPreview();
     clearTimeout(loopTimer.current);
     standalone.current = null;
     setClicking(false); clickBeat.set(-1);
@@ -117,6 +125,13 @@ export function useStudio(lesson:Lesson, isImported: boolean) {
   function complete(completion: Completion) {
     clearKeys();
     const { attempt } = completion;
+    const exercise = exerciseRef.current;
+    if (exercise) {
+      exerciseRef.current = undefined;
+      exercise.onComplete(attempt);
+      setMessage(attempt ? '本轮练习结束。' : completion.demo ? '示范结束。' : '没有收到演奏输入，请再开始一轮。');
+      return;
+    }
     if (attempt) {
       setResult(attempt);
       const next = [attempt, ...history.current.filter(previous => previous.id !== attempt.id)].slice(0, 200);
@@ -148,17 +163,20 @@ export function useStudio(lesson:Lesson, isImported: boolean) {
     if (finished) { complete(finished); return; }
     setMessage(engine.getSnapshot().status === 'running' ? '从刚才的音继续。' : '听完预备拍，从暂停位置继续。');
   }
-  async function start(demo = false) {
+  async function start(demo = false, exercise?: Exercise) {
     stop(false);
     const version = generation.current;
     setResult(null);
     if (!await preparePlayback() || version !== generation.current) return;
     clearKeys();
-    if (!engine.start(lessonRef.current, settingsRef.current, demo)) {
+    const round = exercise ? { ...settingsRef.current, ...exercise.settings, bpm: exercise.lesson.bpm,
+      countIn: demo ? 0 : 1, loop: false, accompaniment: false } : settingsRef.current;
+    if (!engine.start(exercise?.lesson ?? lessonRef.current, round, demo)) {
       setMessage('这个片段没有所选声部，请切换左右手或小节范围。');
       return;
     }
-    setMessage(demo ? '听示范，观察谱面与指法。' : settingsRef.current.mode === 'wait'
+    exerciseRef.current = exercise;
+    setMessage(demo ? '听示范，观察谱面与指法。' : round.mode === 'wait'
       ? '按谱弹奏，弹对后进入下一组。' : '先听预备拍。拍子开始后，保持连续。');
   }
   startRef.current=start;
@@ -169,7 +187,7 @@ export function useStudio(lesson:Lesson, isImported: boolean) {
     inputHeld.current.set(n,press);down.set(new Set(inputHeld.current.keys()));
     if(!ready){void initialize().then(ok=>{if(ok&&inputHeld.current.get(n)===press)piano.play(n,velocity,piano.now,undefined,true);});return;}
     piano.play(n,velocity,piano.now,undefined,true);
-    const feedback = engine.press(n, at, source, settingsRef.current.hints, press.offset);
+    const feedback = engine.press(n, at, source, exerciseRef.current?.settings.hints ?? settingsRef.current.hints, press.offset);
     if (feedback) setMessage(feedback);
   }
   function releaseNote(n: number, at = piano.now) {

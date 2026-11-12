@@ -1,5 +1,6 @@
 import type { Lesson, Note, Hand } from './model';
 import { repertoire } from './repertoire';
+import { phases } from './coursePlan';
 import { beginnerStudies } from './beginnerStudies';
 import { pulseAndFingerStudies } from './pulseAndFingerStudies';
 function line(pitches: number[], durations: number[], hand: Hand, fingers: number[]): Note[] {
@@ -71,5 +72,8 @@ const introductoryLessons: Lesson[] = order.map(id => {
     : id === 'together' ? '04 · 双手合作' : lesson.stage;
   return { ...lesson, stage };
 });
-export const lessons: Lesson[] = [...introductoryLessons, ...repertoire];
+const stageOrder = phases.flatMap(phase => phase.chapters);
+export const lessons: Lesson[] = [...introductoryLessons, ...repertoire].sort(
+  (a, b) => stageOrder.indexOf(a.stage) - stageOrder.indexOf(b.stage),
+);
 export const goals = [ { title:'枫',artist:'周杰伦',color:'maple',tag:'旋律与乐句'}, { title:'蒲公英的约定',artist:'周杰伦',color:'dandelion',tag:'双手与伴奏'}, { title:'唯一',artist:'G.E.M. 邓紫棋演唱版',color:'only',tag:'节奏与表达'} ];

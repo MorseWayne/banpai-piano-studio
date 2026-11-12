@@ -8,6 +8,7 @@ import { loadImports, loadLearning, read, save } from './storage';
 import { importMusicXML } from './import';
 import { DeviceSettings } from './DeviceSettings';
 import { PracticeRoom } from './PracticeRoom';
+import { EchoWorkshop } from './EchoWorkshop';
 import { ChapterNavigation, type DirectoryView } from './ChapterNavigation';
 import { LessonStudy } from './LessonStudy';
 import { readingFor } from './learning';
@@ -19,8 +20,8 @@ const navigation = [
   { id: 'songs', label: '想弹的歌', icon: Library },
   { id: 'history', label: '练习记录', icon: History },
 ] as const;
-type Page = typeof navigation[number]['id'] | 'learn';
-const chapters = [...new Set(lessons.map(lesson => lesson.stage))].map(title => ({
+type Page = typeof navigation[number]['id'] | 'learn' | 'echo';
+const chapters = phases.flatMap(phase => phase.chapters).map(title => ({
   title, lessons: lessons.filter(lesson => lesson.stage === title),
 }));
 
@@ -96,7 +97,8 @@ export default function App() {
       if (currentPhase) setPhase(currentPhase);
     }
     const returningToRound = page === 'learn' && next === 'practice' && (studio.status === 'paused' || studio.status === 'finished');
-    if (!returningToRound) studio.stop(false);
+    if (!returningToRound) studio.stop(false, page === 'echo' || next === 'echo');
+    if (page === 'echo' || next === 'echo') studio.setMessage('准备好后开始练习。');
     setPage(next);
     window.scrollTo(0, 0);
   }
@@ -153,8 +155,10 @@ export default function App() {
           <a href="#" className="brand" aria-label="半拍练习室" onClick={event => { event.preventDefault(); navigate('practice'); }}>
             <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>半拍
           </a>
-          <nav aria-label="主导航">{navigation.map(item => <button key={item.id} aria-current={page === item.id || (page === 'learn' && item.id === 'courses') ? 'page' : undefined}
+          <nav aria-label="主导航">{navigation.map(item => <button key={item.id} aria-current={page === item.id || ((page === 'learn' || page === 'echo') && item.id === 'courses') ? 'page' : undefined}
             onClick={() => navigate(item.id)}><item.icon size={16} />{item.label}</button>)}</nav>
+          {page === 'practice' && <button className="echo-entry" aria-label="窗边的回声 · 小曲研习" onClick={() => navigate('echo')}>
+            <Music2 size={15} /><span>小曲研习</span></button>}
           <DeviceSettings studio={studio} />
         </div>
       </header>
@@ -170,6 +174,7 @@ export default function App() {
           onReview={() => openDirectory('history')}
           onCourses={() => navigate('courses')} onHistory={() => navigate('history')} onLearning={() => openLearning(lesson.id)}
           progress={courseProgress} onNext={selectLesson} />}
+        {page === 'echo' && <EchoWorkshop studio={studio} onBack={() => navigate('courses')} />}
         {page === 'learn' && <LessonStudy key={lesson.id} lesson={lesson} checked={learning[lesson.id] ?? []} fromPractice={studyFromPractice}
           onCheck={updateLearning} onPractice={() => navigate('practice')} onBack={() => navigate('courses')}
           onListen={studio.previewNotes} onStopPreview={studio.stopPreview}
@@ -179,6 +184,11 @@ export default function App() {
           <div className="page-heading"><div><h1>学习路径</h1><p>从第一次落键，学到为喜欢的歌配和弦、编伴奏并完整演奏。</p></div>
             <div className="course-progress"><b>已完成 {completed.size} / {lessons.length} 课</b><progress aria-label="全部课程完成进度" value={completed.size} max={lessons.length} /></div>
           </div>
+          <button className="echo-feature" onClick={() => navigate('echo')}>
+            <span className="echo-feature-keys" aria-hidden="true">{Array.from({length: 7}, (_, i) => <i key={i} />)}</span>
+            <span><small>小曲研习</small><strong>窗边的回声</strong><span>听问答、分手练、双手合奏，再独立读一条新谱。</span></span>
+            <span className="echo-feature-link">进入研习<ArrowRight size={17} /></span>
+          </button>
           <div className="course-overview"><span>完成章节 <b>{completedChapters} / {chapters.length}</b></span><span>已学习 <b>{learned.size}</b></span><span>已练习 <b>{lessons.filter(item => practiced.has(item.id)).length}</b></span><span>独立完成 <b>{independentCount}</b></span></div>
           <p className="course-criteria">一轮内弹完本课全部音符，即计入章节进度。讲解与自检可按需查看。听辨、即兴与自选曲通过弹唱或录音自行验收。</p>
           <nav className="phase-nav" aria-label="学习阶段">{phases.map(item =>
@@ -193,7 +203,7 @@ export default function App() {
           {chapters.filter(chapter => phase.chapters.includes(chapter.title)).map(chapter => {
             const done = chapter.lessons.filter(item => completed.has(item.id)).length;
             return <section className="course-section" key={chapter.title} aria-label={chapter.title}>
-            <div className="chapter-heading"><h2>{chapter.title}</h2><span>{done === chapter.lessons.length ? '本章已完成' : '已完成'} {done}/{chapter.lessons.length} 课</span>
+            <div className="chapter-heading"><h2>{chapter.title.replace(/^\d+ · /, '')}</h2><span>{done === chapter.lessons.length ? '本章已完成' : '已完成'} {done}/{chapter.lessons.length} 课</span>
               <progress aria-label={`${chapter.title} 完成进度`} value={done} max={chapter.lessons.length} /></div>
             <div className="library-list">{chapter.lessons.map(item => <article className="lesson-row course-row" key={item.id} aria-label={item.title}>
               <div className="course-description"><h3>{item.title}{completed.has(item.id) && <span className="lesson-done">已完成</span>}</h3><p>{item.subtitle}</p>

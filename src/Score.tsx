@@ -9,6 +9,8 @@ import { read, save } from './storage';
 
 interface ScoreProps {
   purpose?: 'practice' | 'study';
+  audition?: boolean;
+  label?: string;
   lesson: Lesson;
   focusBar: number;
   startBar: number;
@@ -93,7 +95,7 @@ function indexPage(display: OpenSheetMusicDisplay, lesson: Lesson, firstBar: num
   return { groups, bars };
 }
 
-export function Score({ purpose = 'practice', lesson, focusBar, startBar, cursorBeat, follow, active, hits, hands, busy, onPreview, onBrowse, onBar }: ScoreProps) {
+export function Score({ purpose = 'practice', audition = true, label, lesson, focusBar, startBar, cursorBeat, follow, active, hits, hands, busy, onPreview, onBrowse, onBar }: ScoreProps) {
   const host = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [zoom, setZoom] = useState(1);
@@ -185,22 +187,27 @@ export function Score({ purpose = 'practice', lesson, focusBar, startBar, cursor
         graphic.setColor(color, { applyToBeams: false, applyToLedgerLines: false });
         element.dataset.ink = color;
       }
-      if (element.getAttribute('aria-disabled') !== String(busy)) {
-        element.setAttribute('tabindex', busy ? '-1' : '0');
-        element.setAttribute('aria-disabled', String(busy));
+      const disabled = busy || !audition;
+      if (element.getAttribute('aria-disabled') !== String(disabled)) {
+        element.setAttribute('tabindex', disabled ? '-1' : '0');
+        element.setAttribute('aria-disabled', String(disabled));
       }
+      element.setAttribute('aria-label', (audition ? '试听' : '') + describe(notes, lesson.meter));
     }
-  }, [page, active, hands, hits, busy]);
+  }, [page, active, hands, hits, busy, audition]);
 
   function preview(target: EventTarget | null) {
-    if (busy || !(target instanceof Element)) return;
+    if (busy || !audition || !(target instanceof Element)) return;
     const id = target.closest<SVGElement>('[data-score-event]')?.dataset.scoreEvent;
     const group = id && page?.groups.get(id);
     if (group) onPreview(group.notes);
   }
-  return <section className="sheet" aria-label={purpose === 'study' ? '示范乐谱' : '练习乐谱'}>
+  const sheetTitle = label ?? (purpose === 'study' ? '示范乐谱' : '练习乐谱');
+  const durationCue = active.every(n => n.duration === active[0]?.duration) ? `持续 ${active[0]?.duration} 拍`
+    : [...new Set(active.map(n => `${n.hand === 'right' ? '右手' : '左手'} ${n.duration} 拍`))].join(' · ');
+  return <section className="sheet" aria-label={sheetTitle}>
     <div className="sheet-heading">
-      <h2><Music2 size={16} />{purpose === 'study' ? '示范乐谱' : '练习乐谱'}</h2>
+      <h2><Music2 size={16} />{sheetTitle}</h2>
       <div className="score-legend"><span><i className="right" />右手</span><span><i className="left" />左手</span></div>
       <div className="sheet-tools">
         {purpose === 'practice' && <button className="timing-toggle" aria-pressed={timingGuide}
@@ -227,8 +234,8 @@ export function Score({ purpose = 'practice', lesson, focusBar, startBar, cursor
     </div>
     {error && <p className="error" role="alert">谱面加载失败。{error}</p>}
     <div className="sheet-footer">
-      {purpose === 'study' && <span className="score-audition"><Headphones size={15} />{active.length
-        ? `${describe(active, lesson.meter)} · 持续 ${active[0].duration} 拍` : '点音符试听'}</span>}
+      {purpose === 'study' && audition && <span className="score-audition"><Headphones size={15} />{active.length
+        ? `${describe(active, lesson.meter)} · ${durationCue}` : busy ? '' : '点音符试听'}</span>}
       <div className="bar-labels" role="group" aria-label={purpose === 'study' ? '浏览小节' : '选择起练小节'}><span>{purpose === 'study' ? '定位' : '起练'}</span>
         {Array.from({ length: count }, (_, i) => <button key={bar + i} disabled={busy} aria-pressed={startBar === bar + i}
           title={purpose === 'study' ? '查看这一小节' : '从这一小节开始练习'} onClick={() => onBar(bar + i)}>第 {bar + i + 1} 小节</button>)}

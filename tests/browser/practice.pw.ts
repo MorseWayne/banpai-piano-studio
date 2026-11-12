@@ -13,6 +13,7 @@ test('the piano adapts its range and plays a two-note touch chord', async ({ pag
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(piano.getByRole('button')).toHaveCount(25);
   await page.getByRole('button', { name: '学习路径' }).click();
+  await page.getByRole('button', { name: '左右手配合强化' }).click();
   await page.getByRole('button', { name: /直接练习 · 两只手，一起落下/ }).click();
   const bass = piano.getByRole('button', { name: 'C3 琴键', exact: true });
   const treble = piano.getByRole('button', { name: 'C4 琴键', exact: true });

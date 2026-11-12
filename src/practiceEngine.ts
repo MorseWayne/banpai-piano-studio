@@ -1,4 +1,4 @@
-import { Judge, matchesHand, soundingEndBeat, type Attempt, type Hands, type Lesson, type Mode, type Note } from './model';
+import { Judge, matchesHand, noteName, soundingEndBeat, type Attempt, type Hands, type Lesson, type Mode, type Note } from './model';
 import { inputBeat } from './midiTiming';
 
 export interface Settings {
@@ -193,7 +193,17 @@ export class PracticeEngine {
     r.assisted ||= hints;
     r.sources.add(source);
     const verdict = r.judge.on(pitch, beat);
-    if (verdict === 'wrong') return r.wait ? '音高有偏差，请看谱再试一次。' : '继续跟着拍子走，结束后再回顾。';
+    if (verdict === 'wrong') {
+      if (!r.wait) return '继续跟着拍子走，结束后再回顾。';
+      const group = r.judge.current;
+      const position = r.startBeat + group[0].beat;
+      const where = `第 ${Math.floor(position / r.lesson.meter) + 1} 小节第 ${position % r.lesson.meter + 1} 拍`;
+      const expected = group.filter(note => !r.judge.held.has(note.midi));
+      const cue = hints ? (expected.length ? '请找' + expected.map(note =>
+        (note.hand === 'left' ? '左手 ' : '右手 ') + noteName(note.midi)).join('、') : '请松键后一起重弹')
+        : '看前后两个音的高低，再读一次';
+      return `${where}弹到了 ${noteName(pitch)}。${cue}。`;
+    }
     if (verdict !== 'correct') return;
     const hits = new Set(r.judge.hits);
     if (!r.wait) { this.publish({ hits }); return; }

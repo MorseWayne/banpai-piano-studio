@@ -26,20 +26,21 @@ test('the pulse and fingering chapter advances from two keys to a scored phrase 
   await expect(page.locator('.score-playhead')).toHaveAttribute('data-state', 'playing', { timeout: 9000 });
 });
 
-test('the foundation phrase leads into interval reading and its playable score', async ({ page }) => {
+test('the duet leads into chord construction and its playable score', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: '学习路径', exact: true }).click();
+  await page.getByRole('button', { name: '左右手配合强化' }).click();
   await page.getByRole('button', { name: /学习讲解 · 自己合奏/ }).click();
-  await page.getByRole('button', { name: /进入下一阶段 · 用距离读旋律/ }).click();
+  await page.getByRole('button', { name: /进入下一阶段 · 把三个音叠在一起/ }).click();
   await expect(page.getByRole('region', { name: '练习乐谱' })).toBeVisible();
   await page.getByRole('button', { name: '本课要点', exact: true }).click();
   await page.getByRole('button', { name: '查看完整讲解' }).click();
   await page.getByRole('button', { name: '离谱应用' }).click();
-  await expect(page.getByRole('article', { name: '课程讲解' })).toContainText('从 G4 起');
+  await expect(page.getByRole('article', { name: '课程讲解' })).toContainText('F、A、C');
   await page.getByRole('button', { name: '开始本节练习' }).first().click();
   await expect(page.getByRole('button', { name: /试听第 1 小节 · 第 1 拍/ }).first()).toBeVisible();
   await page.getByRole('button', { name: '学习路径', exact: true }).click();
-  await expect(page.getByRole('button', { name: '读谱与键盘熟练度' })).toHaveAttribute('aria-current', 'step');
+  await expect(page.getByRole('button', { name: '流行音乐理论' })).toHaveAttribute('aria-current', 'step');
 });
 
 test('the first visit starts with posture and learning progress persists separately from practice', async ({ page }) => {
@@ -49,7 +50,7 @@ test('the first visit starts with posture and learning progress persists separat
   await page.getByRole('navigation', { name: '主导航' }).getByRole('button', { name: '学习路径' }).click();
   await expect(page.getByRole('heading', { name: '学习路径', exact: true })).toBeVisible();
   await expect(page.getByRole('article').first()).toHaveAttribute('aria-label', '坐稳，放松地弹出第一个音');
-  await expect(page.getByRole('article')).toHaveCount(32);
+  await expect(page.getByRole('article')).toHaveCount(12);
   await page.getByRole('button', { name: /学习讲解 · 坐稳/ }).click();
   await expect(page.getByRole('article', { name: '课程讲解' })).toBeVisible();
   await page.getByRole('button', { name: '下一步' }).click();
@@ -139,6 +140,7 @@ test('learning content and its linked score remain usable on narrow screens', as
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.getByRole('navigation', { name: '主导航' }).getByRole('button', { name: '学习路径' }).click();
+  await page.getByRole('button', { name: '手指练习', exact: true }).click();
   await page.getByRole('button', { name: /学习讲解 · 认识右手/ }).click();
   await expect(page.locator('.hand-stage')).toHaveAttribute('aria-busy', 'false');
   const note = page.getByRole('button', { name: /试听第 1 小节 · 第 2 拍 · 右手 D4/ });
@@ -157,6 +159,7 @@ test('learning content and its linked score remain usable on narrow screens', as
 test('the paused round keeps the grand staff and 3D hands visible beside lesson reminders', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('navigation', { name: '主导航' }).getByRole('button', { name: '学习路径' }).click();
+  await page.getByRole('button', { name: '左右手配合强化' }).click();
   await page.getByRole('button', { name: /直接练习 · 左手保持，右手走两步/ }).click();
   await page.getByRole('button', { name: '3D 指法' }).click();
   await expect(page.locator('.hand-stage')).toHaveAttribute('aria-busy', 'false');

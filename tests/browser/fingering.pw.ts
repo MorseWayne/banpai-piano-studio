@@ -79,6 +79,7 @@ test('the playable 3D view follows the lesson and switches back to the regular p
 test('inspection keeps both staves and camera controls visible at desktop sizes and fits a narrow screen', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: '学习路径' }).click();
+  await page.getByRole('button', { name: '左右手配合强化' }).click();
   await page.getByRole('button', { name: /直接练习 · 一只手保持，一只手前进/ }).click();
   await page.getByRole('button', { name: '3D 指法' }).click();
   await expect(page.locator('.hand-stage')).toHaveAttribute('aria-busy', 'false');
